@@ -10,6 +10,8 @@
 
 <https://blog.csdn.net/anxpp/article/details/51512200>    感觉这个代码最贴近现实应用
 
+<http://ifeve.com/overview/>  很全面，很详细
+
 # BIO（同步阻塞 IO）
 
 客户端一个请求对应一个线程。客户端上来一个请求（最开始的连接以及后续的IO请求），服务端新建一个线程去处理这个请求，由于线程总数是有限的（操作系统对线程总数的限制或者线程池的大小），所以，当达到最大值时给客户端的反馈就是无法响应，**阻塞体现在**服务端接收客户端**连接请求**被阻塞了，还有一种阻塞是在单线程处理某一个连接时，需要一直等待IO操作完成。**同步体现在**单个线程处理请求时**调用read（write）**方法需等待读取（写）操作完成才能返回。
@@ -177,9 +179,161 @@ if(len>0){
 ## 异步主要体现
 
 - AsynchronousSocketChannel
+  - 类似SocketChannel
 - AsynchronousServerSocketChannel
+  - 类似ServerSocketChannel
 - AsynchronousFileChannel
 - AsynchronousDatagramChannel
+
+在AIO socket编程中，服务端通道是AsynchronousServerSocketChannel，这个类提供了一个open()静态工厂，一个bind()方法用于绑定服务端IP地址（还有端口号），另外还提供了accept()用于接收用户连接请求。在客户端使用的通道是AsynchronousSocketChannel,这个通道处理提供open静态工厂方法外，还提供了read和write方法。
+
+在AIO编程中，发出一个事件（accept read write等）之后要指定事件处理类（回调函数），AIO中的事件处理类是CompletionHandler<V,A>，这个接口定义了如下两个方法，分别在异步操作成功和失败时被回调。
+
+void completed(V result, A attachment);
+
+void failed(Throwable exc, A attachment);
+
+## demo
+
+### 开启和绑定
+
+```java
+AsynchronousServerSocketChannel serverChannel;
+serverChannel = AsynchronousServerSocketChannel.open().bind(new InetSocketAddress(port), 100);	//port是端口号
+serverChannel.accept(this, new AcceptHandler());	//new AcceptHandler是实现的具体回调
+```
+
+
+
+**回调方法需要具体实现**
+
+### accept回调
+
+```java
+    /**
+     * accept到一个请求时的回调
+     */
+private class AcceptHandler implements CompletionHandler<AsynchronousSocketChannel, AIOServer> {
+        @Override
+        public void completed(final AsynchronousSocketChannel client, AIOServer attachment) {
+            try {
+                System.out.println("远程地址：" + client.getRemoteAddress());
+                //tcp各项参数
+                client.setOption(StandardSocketOptions.TCP_NODELAY, true);
+                client.setOption(StandardSocketOptions.SO_SNDBUF, 1024);
+                client.setOption(StandardSocketOptions.SO_RCVBUF, 1024);
+
+                if (client.isOpen()) {
+                    System.out.println("client.isOpen：" + client.getRemoteAddress());
+                    final ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+                    buffer.clear();
+                    client.read(buffer, client, new ReadHandler(buffer));
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                attachment.serverChannel.accept(attachment, this);// 监听新的请求，递归调用。
+            }
+        }
+
+        @Override
+        public void failed(Throwable exc, AIOServer attachment) {
+            try {
+                exc.printStackTrace();
+            } finally {
+                attachment.serverChannel.accept(attachment, this);// 监听新的请求，递归调用。
+            }
+        }
+    }
+```
+
+
+
+### read回调
+
+```java
+    /**
+     * Read到请求数据的回调
+     */
+    private class ReadHandler implements CompletionHandler<Integer, AsynchronousSocketChannel> {
+
+        private ByteBuffer buffer;
+
+        public ReadHandler(ByteBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void completed(Integer result, AsynchronousSocketChannel attachment) {
+            try {
+                if (result < 0) {// 客户端关闭了连接
+                    AIOServer.close(attachment);
+                } else if (result == 0) {
+                    System.out.println("空数据"); // 处理空数据
+                } else {
+                    // 读取请求，处理客户端发送的数据
+                    buffer.flip();
+                    CharBuffer charBuffer = AIOServer.decoder.decode(buffer);
+                    System.out.println(charBuffer.toString()); //接收请求
+
+                    //响应操作，服务器响应结果
+                    buffer.clear();
+                    String res = "HTTP/1.1 200 OK" + "\r\n\r\n" + "hellworld";
+                    buffer = ByteBuffer.wrap(res.getBytes());
+                    attachment.write(buffer, attachment, new WriteHandler(buffer));//Response：响应。
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void failed(Throwable exc, AsynchronousSocketChannel attachment) {
+            exc.printStackTrace();
+            AIOServer.close(attachment);
+        }
+    }
+```
+
+### write回调
+
+```java
+    /**
+     * Write响应完请求的回调
+     */
+    private class WriteHandler implements CompletionHandler<Integer, AsynchronousSocketChannel> {
+        private ByteBuffer buffer;
+
+        public WriteHandler(ByteBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void completed(Integer result, AsynchronousSocketChannel attachment) {
+            buffer.clear();
+            AIOServer.close(attachment);
+        }
+
+        @Override
+        public void failed(Throwable exc, AsynchronousSocketChannel attachment) {
+            exc.printStackTrace();
+            AIOServer.close(attachment);
+        }
+    }
+```
+
+
+
+# NETTY
+
+参考这位大佬的笔记： <https://www.jianshu.com/p/40a2004a531b>
+
+Netty是建立在NIO基础之上，Netty在NIO之上又提供了更高层次的抽象。
+
+在Netty里面，Accept连接可以使用单独的线程池去处理，读写操作又是另外的线程池来处理。
+
+
 
 
 
