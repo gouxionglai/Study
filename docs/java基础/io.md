@@ -1,3 +1,7 @@
+---
+typora-copy-images-to: image
+---
+
 # IO
 
 参考大佬的博客，写得很详细：
@@ -116,7 +120,52 @@ while (true){
    2. linux版本java调用的是epoll
 
 ```java
+ServerSocketChannel serverChannel = ServerSocketChannel.open();
+// 设置通道为非阻塞
+serverChannel.configureBlocking(false);
+// 将该通道 对应的ServerSocket绑定到port端口
+// 注意：不是绑定ServerSocketChannel，而是绑定其对应的ServerSocket
+serverChannel.socket().bind(new InetSocketAddress(port));
+// 获得一个通道管理器
+Selector selector = Selector.open();
+//将通道管理器和该通道绑定，并为该通道注册SelectionKey.OP_ACCEPT事件,注册该事件后，
+//当该事件到达时，selector.select()会返回，如果该事件没到达selector.select()会一直阻塞。
+serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
+while (true) {
+            //当注册的事件到达时，方法返回；否则,该方法会一直阻塞
+            selector.select();
+            // 获得selector中选中的项的迭代器，选中的项为注册的事件
+            Iterator ite = this.selector.selectedKeys().iterator();
+            while (ite.hasNext()) {
+                SelectionKey key = (SelectionKey) ite.next();
+                // 删除已选的key,以防重复处理
+                ite.remove();
+                // 客户端请求连接事件
+                if (key.isAcceptable()) {
+                    ServerSocketChannel server = (ServerSocketChannel) key.channel();
+                    // 获得和客户端连接的通道：真正和客户端通信的通道
+                    // 完成该操作意味着完成TCP三次握手，TCP物理链路正式建立
+                    SocketChannel responeceChannel = server.accept();
+                    // 设置成非阻塞
+                    responeceChannel.configureBlocking(false);
+                    responeceChannel.register(this.selector, SelectionKey.OP_READ);
+                    // 获得了可读的事件
+                } else if (key.isReadable()) {
+                    System.out.println("===========read key:"+key);
+                    SocketChannel channel = (SocketChannel) key.channel();
+                    // 创建读取的缓冲区
+                    ByteBuffer buffer = ByteBuffer.allocate(512);
+                    StringBuilder sb = new StringBuilder();
+                    //如果长度超过byteBuffer一次性读取完
+                    while ( channel.read(buffer)>0){
+                        buffer.flip();
+                        sb.append(new String(buffer.array())).append("+");
+                    }
+                    System.out.println("received : " + sb.toString());
+                 }
+             }
+        }
 ```
 
 ​      
@@ -138,32 +187,7 @@ while (true){
 ByteBuffer我理解的是一个容器类。里面有一个很有意思的方法：flip，用于切换读写状态。
 
 ```java
-//类似于ServerSocket，可以解阻塞
-ServerSocketChannel server = ServerSocketChannel.open();
-//形成端口
-SocketAddress socketAddress = new InetSocketAddress(port);
-//绑定端口
-server.bind(socketAddress);
-//设置不会阻塞
-server.configureBlocking(false);
-//建立连接
-SocketChannel accept = server.accept();
-//写入到ByteBuffer
-ByteBuffer byteBuffer = ByteBuffer.allocate(512);
-int len = socketChannel.read(byteBuffer);
-if(len>0){
-    System.out.println("=====reading"+ len);
-    //flip的作用是切换读写模式，由写改为读
-    byteBuffer.flip();
-    //注意这里byte的长度不是1024了。而是读取多少，设置多少长度。或者改为一个个字节的读取
-    byte[] bytes = new byte[len];
-    //判断是否还有数据，有才去取
-    while (byteBuffer.remaining()>0){
-        byteBuffer.get(bytes);
-    }
-    String message = new String(bytes, StandardCharsets.UTF_8);
-    System.out.println(message);
-}
+
 ```
 
 # AIO（NIO2：异步非阻塞IO）
@@ -327,13 +351,39 @@ private class AcceptHandler implements CompletionHandler<AsynchronousSocketChann
 
 # NETTY
 
-参考这位大佬的笔记： <https://www.jianshu.com/p/40a2004a531b>
+## 参考
 
-Netty是建立在NIO基础之上，Netty在NIO之上又提供了更高层次的抽象。
+[netty介绍](https://www.jianshu.com/p/40a2004a531b)
 
-在Netty里面，Accept连接可以使用单独的线程池去处理，读写操作又是另外的线程池来处理。
+[netty概述](https://www.jianshu.com/p/1a6d1a25e6cc)
+
+[reactor模式](https://www.jianshu.com/p/eef7ebe28673)
+
+## Reactor模式
+
+使用netty，不得不了解reactor模式（别问我为什么知道 = =）
+
+在处理web请求时，通常有两种体系结构，分别为：thread-based architecture（基于线程）、event-driven architecture（事件驱动）
+
+### thread-based architecture
+
+基于线程的体系结构通常会使用多线程来处理客户端的请求，每当接收到一个请求，便开启一个独立的线程来处理。
+
+请求很多的时候，线程开销很大。造成服务器负担
+
+![img](F:\github\Study\docs\java基础\image\10345180-faaebf9335592620.png)
 
 
+
+### event-driven architecture
+
+事件驱动体系结构是目前比较广泛使用的一种。这种方式会定义一系列的事件处理器来响应事件的发生，并且将服务端接受连接与对事件的处理分离。其中，事件是一种状态的改变。比如，tcp中socket的new incoming connection、ready for read、ready for write。
+
+![img](F:\github\Study\docs\java基础\image\10345180-fdaf4d307916cd8f.png)
+
+### reactor
+
+reactor设计模式是event-driven architecture的一种实现方式，处理多个客户端并发的向服务端请求服务的场景。每种服务在服务端可能由多个方法组成。reactor会解耦并发请求的服务并分发给对应的事件处理器来处理。目前，许多流行的开源框架都用到了reactor模式，如：netty、node.js等，包括java的nio。
 
 
 
