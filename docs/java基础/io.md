@@ -359,13 +359,47 @@ private class AcceptHandler implements CompletionHandler<AsynchronousSocketChann
 
 [reactor模式](https://www.jianshu.com/p/eef7ebe28673)
 
+[新手入门](https://www.cnblogs.com/imstudy/p/9908791.html)	《**重点推荐**》
+
+[源码进阶](https://www.cnblogs.com/crazymakercircle/tag/netty/)
+
+## 优点
+
+1. 设计优雅：适用于各种传输类型的统一 API 阻塞和非阻塞 Socket；基于灵活且可扩展的事件模型，可以清晰地分离关注点；高度可定制的线程模型 - 单线程，一个或多个线程池；真正的无连接数据报套接字支持（自 3.1 起）。
+
+2. 使用方便：详细记录的 Javadoc，用户指南和示例；没有其他依赖项，JDK 5（Netty 3.x）或 6（Netty 4.x）就足够了。
+
+3. 高性能、吞吐量更高：延迟更低；减少资源消耗；最小化不必要的内存复制。
+
+4. 安全：完整的 SSL/TLS 和 StartTLS 支持。、
+
+## 使用场景
+
+1. 互联网行业：在分布式系统中，各个节点之间需要远程服务调用，高性能的 RPC 框架必不可少，Netty 作为异步高性能的通信框架，往往作为基础通信组件被这些 RPC 框架使用。典型的应用有：阿里分布式服务框架 Dubbo 的 RPC 框架使用 Dubbo 协议进行节点间通信，Dubbo 协议默认使用 Netty 作为基础通信组件，用于实现各进程节点之间的内部通信。
+
+2. 游戏行业：无论是手游服务端还是大型的网络游戏，Java 语言得到了越来越广泛的应用。Netty 作为高性能的基础通信组件，它本身提供了 TCP/UDP 和 HTTP 协议栈。
+
+3. 非常方便定制和开发私有协议栈，账号登录服务器，地图服务器之间可以方便的通过 Netty 进行高性能的通信。
+
+4. 大数据领域：经典的 Hadoop 的高性能通信和序列化组件 Avro 的 RPC 框架，默认采用 Netty 进行跨界点通信，它的 Netty Service 基于 Netty 框架二次封装实现。
+
+   
+
 ## Reactor模式
 
 使用netty，不得不了解reactor模式（别问我为什么知道 = =）
 
 在处理web请求时，通常有两种体系结构，分别为：thread-based architecture（基于线程）、event-driven architecture（事件驱动）
 
-### thread-based architecture
+## 高性能设计
+
+Netty 作为异步事件驱动的网络，高性能之处主要来自于其 I/O 模型和线程处理模型，前者决定如何收发数据，后者决定如何处理数据
+
+### I/O 模型
+
+### 线程处理模型
+
+#### thread-based architecture
 
 基于线程的体系结构通常会使用多线程来处理客户端的请求，每当接收到一个请求，便开启一个独立的线程来处理。
 
@@ -375,15 +409,261 @@ private class AcceptHandler implements CompletionHandler<AsynchronousSocketChann
 
 
 
-### event-driven architecture
+#### event-driven architecture
 
 事件驱动体系结构是目前比较广泛使用的一种。这种方式会定义一系列的事件处理器来响应事件的发生，并且将服务端接受连接与对事件的处理分离。其中，事件是一种状态的改变。比如，tcp中socket的new incoming connection、ready for read、ready for write。
 
 ![img](F:\github\Study\docs\java基础\image\10345180-fdaf4d307916cd8f.png)
 
-### reactor
+#### reactor
 
 reactor设计模式是event-driven architecture的一种实现方式，处理多个客户端并发的向服务端请求服务的场景。每种服务在服务端可能由多个方法组成。reactor会解耦并发请求的服务并分发给对应的事件处理器来处理。目前，许多流行的开源框架都用到了reactor模式，如：netty、node.js等，包括java的nio。
+
+
+
+## netty架构
+
+![img](F:\github\Study\docs\java基础\image\netty架构.png)
+
+## 模块组件
+
+### Bootstrap、ServerBootstrap
+
+Bootstrap 类是客户端程序的启动引导类，ServerBootstrap 是服务端启动引导类
+
+### Channel和Pipeline
+
+Netty 网络通信的组件，能够用于执行网络 I/O 操作
+
+提供一下channel类型：
+
+```txt
+NioSocketChannel，异步的客户端 TCP Socket 连接。
+NioServerSocketChannel，异步的服务器端 TCP Socket 连接。
+NioDatagramChannel，异步的 UDP 连接。
+NioSctpChannel，异步的客户端 Sctp 连接。
+NioSctpServerChannel，异步的 Sctp 服务器端连接，这些通道涵盖了 UDP 和 TCP 网络 IO 以及文件 IO。
+```
+
+在 Netty 中每个 Channel 都有且仅有一个 ChannelPipeline 与之对应，它们的组成关系如下：
+
+![img](F:\github\Study\docs\java基础\image\1500839-e1517d17c12255f4.jpg)
+
+ChannelPipeline是一个双向链表。入站事件会从链表 head 往后传递到最后一个入站的 handler，出站事件会从链表 tail 往前传递到最前一个出站的 handler，两种类型的 handler 互不干扰。
+
+### HandlerAdapter适配器
+
+```text
+ChannelInboundHandlerAdapter 用于处理入站 I/O 事件。
+ChannelOutboundHandlerAdapter 用于处理出站 I/O 操作。
+ChannelDuplexHandler 用于处理入站和出站事件。
+```
+
+### Selector
+
+Netty 基于 Selector 对象实现 I/O 多路复用，通过 Selector 一个线程可以监听多个连接的 Channel 事件。
+
+当向一个 Selector 中注册 Channel 后，Selector 内部的机制就可以自动不断地查询(Select) 这些注册的 Channel 是否有已就绪的 I/O 事件（例如可读，可写，网络连接完成等），这样程序就可以很简单地使用一个线程高效地管理多个 Channel 。
+
+### ByteBuf
+
+对比NIO.ByteBuffer的优势：
+
+1. Pooling (池化，这点减少了内存复制和GC，提升效率)
+2. 可以自定义缓冲类型
+3. 通过一个内置的复合缓冲类型实现零拷贝
+4. 扩展性好，比如 StringBuffer
+5. 不需要调用 flip()来切换读/写模式
+6. 读取和写入索引分开
+7. 方法链
+8. 引用计数
+
+
+
+#### 创建和释放
+
+**原理**：通过release方法减去 heapBuffer 的使用计数，Netty 会自动回收 heapBuffer
+
+##### 手动获取与释放ByteBuf
+
+获取Java 堆中的缓冲区
+
+```java
+ByteBuf heapBuffer = ctx.alloc().heapBuffer();
+```
+
+释放缓冲区（不管手动还是自动，其原理都是release）
+
+```java
+ReferenceCountUtil.release(heapBuffer );
+```
+
+
+
+##### 自动获取和释放 ByteBuf
+
+###### 方式一：TailHandler 自动释放
+
+###### 方式二：SimpleChannelInboundHandler 自动释放
+
+###### 方式三：HeadHandler 自动释放
+
+##### 总结
+
+1. 入站处理流程中，如果对原消息不做处理，默认会调用 ctx.fireChannelRead(msg) 把原消息往下传，由流水线最后一棒 TailHandler 完成自动释放。
+2. 如果将原消息转化为新的消息并调用 ctx.fireChannelRead(newMsg)往下传，那必须把原消息release掉。
+3. 或者是继承SimpleChannelInboundHandler自动处理。
+4. 出站处理过程中，申请分配到的 ByteBuf，通过 HeadHandler 完成自动释放。
+5. 多层的异常处理机制，有些异常处理的地方不一定准确知道ByteBuf之前释放了没有，可以在释放前加上引用计数大于0的判断避免异常；
+6. 总之，**只要是在传递过程中，没有传递下去的ByteBuf就需要手动释放，避免不必要的内存泄露**。
+
+#### 缓冲区 Allocator 分配器
+
+Netty提供了ByteBufAllocator的两种实现：PoolByteBufAllocator和UnpooledByteBufAllocator。前者将ByteBuf实例放入池中，提高了性能，将内存碎片减少到最小。这个实现采用了一种内存分配的高效策略，称为 **jemalloc**。它已经被好几种现代操作系统所采用。后者则没有把ByteBuf放入池中，每次被调用时，返回一个新的ByteBuf实例
+
+#### 缓冲区内存的类型
+
+| 使用模式   | 描述                                                         | 优点                                                      | 劣势                                                         |
+| ---------- | ------------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 堆缓冲区   | 数据存存储在JVM的堆空间中，又称为支撑数组，通过 hasArray 来判断是不是在堆缓冲区中 | 没使用池化情况下能提供快速的分配和释放                    | 发送之前都会拷贝到直接缓冲区                                 |
+| 直接缓冲区 | 存储在物理内存中                                             | 能获取超过jvm堆限制大小的空间； 写入channel比堆缓冲区更快 | 释放和分配空间昂贵(使用系统的方法) ； 操作时需要复制一次到堆上 |
+| 复合缓冲   | 单个缓冲区合并多个缓冲区表示                                 | 操作多个更方便                                            | -                                                            |
+
+使用：
+
+```java
+//创建复合缓冲区
+CompositeByteBuf compBuf = Unpooled.compositeBuffer();
+//创建堆缓冲区
+ByteBuf heapBuf = Unpooled.buffer(8);
+//创建直接缓冲区
+ByteBuf directBuf = Unpooled.directBuffer(16);
+```
+
+#### ByteBuf 的四个逻辑部分
+
+第一个部分是已经丢弃的字节，这部分数据是无效的；
+
+第二部分是可读字节，这部分数据是 ByteBuf 的主体数据， 从 ByteBuf 里面读取的数据都来自这一部分;
+
+第三部分的数据是可写字节，所有写到 ByteBuf 的数据都会写到这一段。
+
+第四部分的字节，表示的是该 ByteBuf 最多还能扩容的大小。
+
+![img](F:\github\Study\docs\java基础\image\20181118215630736.png)
+
+#### ByteBuf 的三个指针
+
+- readerIndex（读指针）
+
+  每读取一个字节，readerIndex 自增1 。一旦 readerIndex 与 writerIndex 相等，ByteBuf 不可读 。
+
+- writerIndex（写指针）
+
+  每写一个字节，writerIndex 自增1。一旦增加到 writerIndex 与 capacity（） 容量相等，表示 ByteBuf 已经不可写了
+
+- maxCapacity（最大容量）
+
+  指示可以 ByteBuf 扩容的最大容量。当向 ByteBuf 写数据的时候，如果容量不足，可以进行扩容。
+
+  capacity（）扩容超过最大限度 maxCapacity 就会报错
+
+![img](F:\github\Study\docs\java基础\image\201811182157068.png)
+
+#### ByteBuf 的引用计数
+
+如果计数为0，则需要看是pooled还是Unpooled，如果是pool则放入池子，反之由GC回收。
+
+- 默认情况下，当创建完一个 ByteBuf 时，它的引用为1
+- 每次调用 retain()方法， 它的引用就加 1 
+- 每次调用 release() 方法，是将引用计数减 1
+
+#### ByteBuf 的浅层复制
+
+ByteBuf 的浅层复制分为两种，有切片slice 浅层复制，和duplicate 浅层复制。
+
+​	slice 只copy可读部分
+
+​	duplicate copy全部
+
+##### slice 切片浅层复制
+
+```java
+public static void testSlice() {
+    ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(9, 100);
+    print("===allocate ByteBuf(9, 100)===", buffer);
+
+    buffer.writeBytes(new byte[]{1, 2, 3, 4});
+    print("===writeBytes(1,2,3,4)===", buffer);
+
+    ByteBuf buffer1= buffer.slice();
+    print("===buffer slice===", buffer1);
+}
+```
+
+输出：
+
+```java
+===========allocate ByteBuf(9, 100)============
+capacity(): 9
+maxCapacity(): 100
+readerIndex(): 0
+readableBytes(): 0
+isReadable(): false
+writerIndex(): 0
+writableBytes(): 9
+isWritable(): true
+maxWritableBytes(): 100
+
+===========writeBytes(1,2,3,4)============
+capacity(): 9
+maxCapacity(): 100
+readerIndex(): 0
+readableBytes(): 4
+isReadable(): true
+writerIndex(): 4
+writableBytes(): 5
+isWritable(): true
+maxWritableBytes(): 96
+
+===========buffer slice============
+capacity(): 4
+maxCapacity(): 4
+readerIndex(): 0
+readableBytes(): 4
+isReadable(): true
+writerIndex(): 4
+writableBytes(): 0
+isWritable(): false
+maxWritableBytes(): 0
+```
+
+
+
+##### duplicate() 浅层复制
+
+
+
+
+## 工作架构图
+
+![img](F:\github\Study\docs\java基础\image\1500839-55f5b1d5ddc13581.jpg)
+
+BossGroup NioEventLoop 循环执行的任务包含 3 步：
+
+1）轮询 Accept 事件；
+
+2）处理 Accept I/O 事件，与 Client 建立连接，生成 NioSocketChannel，并将 NioSocketChannel 注册到某个 Worker NioEventLoop 的 Selector 上；
+
+3）处理任务队列中的任务，runAllTasks。任务队列中的任务包括用户调用 eventloop.execute 或 schedule 执行的任务，或者其他线程提交到该 eventloop 的任务。
+
+WorkerGroup NioEventLoop 循环执行的任务包含 3 步：
+
+1）轮询 Read、Write 事件；
+
+2）处理 I/O 事件，即 Read、Write 事件，在 NioSocketChannel 可读、可写事件发生时进行处理；
+
+3）处理任务队列中的任务，runAllTasks。
 
 
 
