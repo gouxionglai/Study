@@ -86,4 +86,11 @@
 
 1.netty核心理解
 
-2.万亿级IM聊天室搭建（学习）
+~~2.万亿级IM聊天室搭建（学习）~~
+
+# 2019-12-17
+
+1. java web	(session cookie, servlet, filter, listener)
+2. spring全家桶系列：spring ioc +  aop + transaction
+3. springboot
+
