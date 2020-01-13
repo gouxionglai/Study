@@ -554,13 +554,13 @@ InvocationHandler handler = new InvocationHandler() {
 
 #### 隔离级别定义
 
-| 隔离级别                   | 含义                                                         |
-| -------------------------- | ------------------------------------------------------------ |
-| ISOLATION_DEFAULT          | 使用后端数据库默认的隔离级别                                 |
-| ISOLATION_READ_UNCOMMITTED | 最低的隔离级别，允许读取尚未提交的数据变更，可能会导致脏读、幻读或不可重复读 |
-| ISOLATION_READ_COMMITTED   | 允许读取并发事务已经提交的数据，可以阻止脏读，但是幻读或不可重复读仍有可能发生 |
-| ISOLATION_REPEATABLE_READ  | 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，可以阻止脏读和不可重复读，但幻读仍有可能发生 |
-| ISOLATION_SERIALIZABLE     | 最高的隔离级别，完全服从ACID的隔离级别，确保阻止脏读、不可重复读以及幻读，也是最慢的事务隔离级别，因为它通常是通过完全锁定事务相关的数据库表来实现的 |
+| 隔离级别                   | 含义                                                         | 脏读 | 不可重复读 | 幻读 |
+| -------------------------- | ------------------------------------------------------------ | ---- | ---------- | ---- |
+| ISOLATION_DEFAULT          | 使用后端数据库默认的隔离级别（mysql默认是read_repeatable，同一事务里面可以读取到未提交的数据）（oracle默认是read_committed,也就是读已提交） |      |            |      |
+| ISOLATION_READ_UNCOMMITTED | 最低的隔离级别，允许读取尚未提交的数据变更，可能会导致脏读、幻读或不可重复读 | yes  | yes        | yes  |
+| ISOLATION_READ_COMMITTED   | 允许读取并发事务已经提交的数据，可以阻止脏读，但是幻读或不可重复读仍有可能发生 | no   | yes        | yes  |
+| ISOLATION_REPEATABLE_READ  | 对同一字段的多次读取结果都是一致的，除非数据是被本身事务自己所修改，可以阻止脏读和不可重复读，但幻读仍有可能发生 | no   | no         | yes  |
+| ISOLATION_SERIALIZABLE     | 最高的隔离级别，完全服从ACID的隔离级别。强制的进行排序，在每个读读数据行上添加共享锁。**会导致大量超时现象和锁竞争。** | no   | no         | no   |
 
 ### tx形式声明事务
 
@@ -572,3 +572,4 @@ InvocationHandler handler = new InvocationHandler() {
 ### 注解形式声明事务 
 
 xml中定义事务管理器，然后在java方法上添加@Transactional即可  略。
+
