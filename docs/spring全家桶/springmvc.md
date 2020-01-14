@@ -592,6 +592,72 @@ public class LoginInterceptor implements HandlerInterceptor {
 
 分步骤一：<https://blog.csdn.net/gududedabai/article/details/83375156>
 
+详细版：<https://blog.csdn.net/qq_38410730/article/details/79507465>
+
+![img](F:\github\Study\docs\spring全家桶\images\springmvc执行全流程.png)
+
+
+
+### 初始化
+
+DispatcherServlet.onRefresh()
+
+```java
+protected void onRefresh(ApplicationContext context) {
+        this.initStrategies(context);
+    }
+
+//根据web.xml中配置的和默认的设置初始化
+protected void initStrategies(ApplicationContext context) {
+    this.initMultipartResolver(context);	//上传文件相关
+    this.initLocaleResolver(context);	//default
+    this.initThemeResolver(context);	//default
+    this.initHandlerMappings(context);	//获取handlerMapping s
+    this.initHandlerAdapters(context);	//获取handlerAdapter s
+    this.initHandlerExceptionResolvers(context);	//获取异常处理
+    this.initRequestToViewNameTranslator(context);	//defaut
+    this.initViewResolvers(context);	//配置的试图解析器
+    this.initFlashMapManager(context);	//default-->SessionFlashMapManager
+}
+
+//拿上面的initHandlerMappings举个例子  逻辑差不多 都是初始化
+private void initHandlerMappings(ApplicationContext context) {
+    this.handlerMappings = null;
+    if (this.detectAllHandlerMappings) {	//web.xml中DispatcherServlet的配置来，默认是true,代表拦截全部实现了handlerMapping接口的bean,如果是false则只找名字为handlerMapping的bean
+        //返回指定类型和子类型的所有bean
+        Map<String, HandlerMapping> matchingBeans = BeanFactoryUtils.beansOfTypeIncludingAncestors(context, HandlerMapping.class, true, false);
+        if (!matchingBeans.isEmpty()) {
+            // map to list 放到属性handlerMappings中。
+            this.handlerMappings = new ArrayList(matchingBeans.values());
+            //排序 底层是Arrays.sort(list,comparator);
+            //AnnotationAwareOrderComparator就是那个comparator. 具体什么规则没有去看了
+            AnnotationAwareOrderComparator.sort(this.handlerMappings);
+        }
+    } else {
+        try {
+            HandlerMapping hm = (HandlerMapping)context.getBean("handlerMapping", HandlerMapping.class);
+            this.handlerMappings = Collections.singletonList(hm);
+        } catch (NoSuchBeanDefinitionException var3) {
+        }
+    }
+
+    //如果还未空，则获取default的
+    if (this.handlerMappings == null) {
+        this.handlerMappings = this.getDefaultStrategies(context, HandlerMapping.class);
+        if (this.logger.isTraceEnabled()) {
+            this.logger.trace("No HandlerMappings declared for servlet '" + this.getServletName() + "': using default strategies from DispatcherServlet.properties");
+        }
+    }
+
+}
+```
+
+
+
+### 处理请求
+
+DispatcherServlet.doDispatch()
+
 ```java
 //核心是DispatcherServlet的doDispatch方法 ，前面会有一些init省略了
 //最早是从servlet.service(request, response);最终到doDispatch
@@ -600,6 +666,7 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
    HandlerExecutionChain mappedHandler = null;
    boolean multipartRequestParsed = false;
 
+    //异步请求
    WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
 
    try {
@@ -607,18 +674,18 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
       Exception dispatchException = null;
 
       try {
-         // 如果是MultipartContent类型则转换为MultiHttpServletRequest类型的request
+         //1. 如果是MultipartContent类型则转换为MultiHttpServletRequest类型的request
          processedRequest = checkMultipart(request);
          multipartRequestParsed = (processedRequest != request);
 
-         // 确定当前请求的处理程序,根据request寻找对应的handler
+         // 2.确定当前请求的处理程序,根据request寻找对应的handler
          mappedHandler = getHandler(processedRequest);
          if (mappedHandler == null || mappedHandler.getHandler() == null) {
             noHandlerFound(processedRequest, response);
             return;
          }
 
-         //  // 根据处理器获取handler适配器
+         // 3.根据处理器获取handler适配器
          HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
 
          // Process last-modified header, if supported by the handler.
@@ -633,12 +700,12 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
                return;
             }
          }
-         // 拦截器postHandle方法处理
+         //4. 拦截器preHandle方法前置处理
          if (!mappedHandler.applyPreHandle(processedRequest, response)) {
             return;
          }
 
-         // Actually invoke the handler.
+         // 5. 执行handler 返回modelAndView， 像静态资源就没有mv
          mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
 
          if (asyncManager.isConcurrentHandlingStarted()) {
@@ -646,7 +713,7 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
          }
          // 结果视图对象的处理
          applyDefaultViewName(processedRequest, mv);
-        // 拦截器postHandle方法处理
+        // 6. 拦截器postHandle方法处理
          mappedHandler.applyPostHandle(processedRequest, response, mv);
       }
       catch (Exception ex) {
@@ -657,11 +724,12 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
          // making them available for @ExceptionHandler methods and other scenarios.
          dispatchException = new NestedServletException("Handler dispatch failed", err);
       }
-      // 处理最终结果 渲染视图等
-       //里面主要是render的exposeModelAsRequestAttributes方法，遍历把值放到request域中
+      // 7. 处理最终结果 渲染视图等
+       //里面主要是render方法，处理repsonse, 遍历把结果值放到request域中
       processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
    }
    catch (Exception ex) {
+       // 如果抛错了还是会执行 afterCompletion 返回通知
       triggerAfterCompletion(processedRequest, response, mappedHandler, ex);
    }
    catch (Throwable err) {
@@ -669,14 +737,15 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
             new NestedServletException("Handler processing failed", err));
    }
    finally {
+       //这个确实没看懂。。像是判断是否异步，但是都没进方法
       if (asyncManager.isConcurrentHandlingStarted()) {
-         // 请求成功响应之后的方法
+          //Instead of postHandle and afterCompletion
          if (mappedHandler != null) {
             mappedHandler.applyAfterConcurrentHandlingStarted(processedRequest, response);
          }
       }
       else {
-         // Clean up any resources used by a multipart request.
+         // 如果是上传文件 则还需要释放文件资源
          if (multipartRequestParsed) {
             cleanupMultipart(processedRequest);
          }
@@ -685,3 +754,21 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
 }
 ```
 
+处理请求doDispatch总结：
+
+1. checkMultipart()：判断是否有上传文件，如果有则最后需要释放资源
+2. getHandler() ： 在初始化后的handlerMappings中遍历获取handler。
+   1. 静态资源是在SimpleUrlHandlerMapping中找
+   2. 像queryUser这种请求是在RequestMappingHandlerMapping中找
+3. getHandlerAdapter() ：根据上一步找到的handler在handlerAdapters找对应的Adapter。
+   1. 通俗的说就是手机插usb有很多接口，type-c, ligntning, micro 等，目的都是转成usb，但是需要不同的适配器来转。
+   2. 静态资源是在HttpRequestHandlerAdapter中找
+   3. 像queryUser这种请求是在RequestMappingHandlerAdaptor中找
+4. applyPreHandle() ：interceptors(多个拦截器)的前置处理
+5. handle()：反射执行handler
+6. applyPostHandle()：interceptors(多个拦截器)的后置处理
+7. processDisPatchResult()：组装结果到response
+8. triggerAfterCompletion() ：interceptors(多个拦截器)的返回处理
+9. cleanMultipart()：根据第一步判断的，如果是有文件，则要释放资源
+
+执行过程中充分体现了aop（4前置通知，6后置通知，8返回通知）
