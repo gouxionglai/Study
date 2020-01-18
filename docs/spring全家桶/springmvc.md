@@ -130,10 +130,32 @@ session失效时间
             </set>
         </property>
     </bean>
-<!--会自动注册DefaultAnnotationHandlerMapping与AnnotationMethodHandlerAdapter 两个bean,是spring MVC为@Controllers分发请求所必须的-->
-<!--加conversionService是使自定义转换器生效-->
-<mvc:annotation-driven conversion-service="conversionService"/>
 ```
+
+- 开启注解驱动
+
+```xml
+<!-- 开启注解驱动 和jackson搭配使用 @ResponseBody返回json格式-->
+<!--会自动注册RequestMappingHandlerMapping, RequestMappingHandlerAdapter, ExceptionHandlerExceptionResolver 这三个bean,是spring MVC为@Controllers分发请求所必须的-->
+<!--加conversionService是使自定义转换器生效-->
+<!--HttpMessageConverter对request到服务器，服务器到response自动类型转换的一个类-->
+<mvc:annotation-driven conversion-service="conversionService">
+    <mvc:message-converters>
+        <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+            <property name="supportedMediaTypes">
+                <list>
+                    <!--指定conten-tyoe需要的编码-->
+                    <value>text/plain;charset=UTF-8</value>
+                    <value>text/html;charset=UTF-8</value>
+                    <value>application/json;charset=UTF-8</value>
+                </list>
+            </property>
+        </bean>
+    </mvc:message-converters>
+</mvc:annotation-driven>
+```
+
+
 - 配置扫描包 + 控制器增强 (异常处理器)
 
 ```xml
@@ -181,6 +203,8 @@ session失效时间
 <mvc:interceptors>
         <!--登录拦截器-->
         <mvc:interceptor>
+            <!--拦截的范围-->
+            <!--还有个标签 mvc:exclude-mapping 指的是不拦截的路径-->
             <mvc:mapping path="/**"/>
             <bean class="com.gxl.framework.handler.interceptor.LoginInterceptor">
                 <property name="allowUrls">
@@ -285,9 +309,19 @@ public String testModelAttribute(Model model){
 
 ### @ResponseBody
 
-实际运用最多，直接以json格式返回，ajax请求局部刷新
+源码解析参考：
 
-返回值：
+<https://www.cnblogs.com/liaojie970/p/7736098.html>
+
+​	即将方法的返回值作为reponse的body返回给客户端，不同的类型处理不一样。这个过程的处理都是靠许许多多的HttpMessageConverter转换器来完成的。
+
+​	常见的方法返回的类型有：text/html、text/plain、text/xml、application/json、application/x-www-form-urlencoded、image/png等，不同的类型，对body中的数据的解析也是不一样的。
+
+​	实际运用最多，直接以json格式返回，ajax请求局部刷新
+
+​	@ResponseBody可以指定content-type，打开ResponseBody注释，我们可以看到这两个属性consumes和produces，它们就是用来指定request的content-type和response的content-type的
+
+补充下知识点：返回值
 
 - 正常的return是跳转页面，项目路径下的完整路径+页面名称，如果配置了试图解析器的prefix和suffix则不用写前后缀。
 - 方法或者类上添加了@ResponseBody注解以后，代表return的不是页面，而是一个json字符串。
@@ -316,11 +350,300 @@ public String testModelAttribute(Model model){
 
 
 
-
+### @Valid
 
 ## 请求参数绑定
 
-反射机制去自动找set赋值
+<https://www.cnblogs.com/fangjian0423/p/springMVC-databind-typeconvert.html>
+
+比如我们自定义的String 转date类型，是怎么实现的。
+
+### 例子：String 转 Date
+
+```java
+//String 转 Date
+//发现属性的类型是Date则会调用这个converter
+public class CustomDateConverter implements Converter<String, Date>{
+
+    private static final List<String> formarts = new ArrayList<String>(5);
+    static{
+        //即下面这种规则传过来的String的值，会转换成对应的date
+        formarts.add("yyyy-MM");
+        formarts.add("yyyy-MM-dd");
+        formarts.add("yyyy-MM-dd HH:mm");
+        formarts.add("yyyy-MM-dd HH:mm:ss");
+        formarts.add("yyyyMMdd");
+    }
+    
+    /**
+     * 将字符串自动转换成日期
+     */
+    @Override
+    public Date convert(String source) {
+        String value = source.trim();
+        if ("".equals(value)) {
+            return null;
+        }
+        if(source.matches("^\\d{4}-\\d{1,2}$")){
+            return parseDate(source, formarts.get(0));
+        }else if(source.matches("^\\d{4}-\\d{1,2}-\\d{1,2}$")){
+            return parseDate(source, formarts.get(1));
+        }else if(source.matches("^\\d{4}-\\d{1,2}-\\d{1,2} {1}\\d{1,2}:\\d{1,2}$")){
+            return parseDate(source, formarts.get(2));
+        }else if(source.matches("^\\d{4}-\\d{1,2}-\\d{1,2} {1}\\d{1,2}:\\d{1,2}:\\d{1,2}$")){
+            return parseDate(source, formarts.get(3));
+        }else if(source.matches("^\\d{8}$")){
+            return parseDate(source, formarts.get(4));
+        }else {
+            throw new IllegalArgumentException("Invalid boolean value '" + source + "'");
+        }
+    }
+
+    /**
+     * 功能描述：格式化日期
+     *
+     * @param dateStr
+     *            String 字符型日期
+     * @param format
+     *            String 格式
+     * @return Date 日期
+     */
+    private  Date parseDate(String dateStr, String format) {
+        Date date=null;
+        try {
+            DateFormat dateFormat = new SimpleDateFormat(format);
+            date = (Date) dateFormat.parse(dateStr);
+        } catch (Exception e) {
+        }
+        return date;
+    }
+
+}
+```
+
+
+
+### 获取绑定错误信息BindingResult
+
+BindingResult：
+
+如果在绑定过程中报错，比如日期2019-13-133 肯定会转换出错。错误信息会记录到BindingResult。
+
+api：
+
+- 获取异常长度：result.getErrorCount()>0
+- 获取所有异常：result.getFieldErrors()
+- 获取异常的字段：fieldError.getField()
+- 获取异常信息：fieldError.getDefaultMessage()
+
+```java
+@RequestMapping(value ="/testBindData")
+    public Object testBindData(Model model, User user, BindingResult result){
+        System.out.println("testBindData 执行了...");
+        //判断是否有异常
+        if(result.getErrorCount()>0){
+            //遍历异常
+            for(FieldError error : result.getFieldErrors()){
+                System.out.println("绑定过程中报错了："+ error.getField() +"---"+error.getDefaultMessage());
+            }
+        }
+        user.setId(3L);
+        model.addAttribute("user",user);
+        //跳转到xx/welcome.jsp页面
+        return "welcome";
+    }
+```
+
+
+
+### 源码：
+
+```java
+//ModelAttributeMethodProcessor.class
+//parameter：方法的参数，比如User
+//ModelAndViewContainer：装model+ view
+@Nullable
+    public final Object resolveArgument(MethodParameter parameter, @Nullable ModelAndViewContainer mavContainer, NativeWebRequest webRequest, @Nullable WebDataBinderFactory binderFactory) throws Exception {
+        Assert.state(mavContainer != null, "ModelAttributeMethodProcessor requires ModelAndViewContainer");
+        Assert.state(binderFactory != null, "ModelAttributeMethodProcessor requires WebDataBinderFactory");
+        //这里拿到的是beanName: 比如user
+        String name = ModelFactory.getNameForParameter(parameter);
+        ModelAttribute ann = (ModelAttribute)parameter.getParameterAnnotation(ModelAttribute.class);
+        if (ann != null) {
+            mavContainer.setBinding(name, ann.binding());
+        }
+
+        Object attribute = null;
+        BindingResult bindingResult = null;
+        if (mavContainer.containsAttribute(name)) {
+            attribute = mavContainer.getModel().get(name);
+        } else {
+            try {
+                //反射找构造方法创建实例化对象
+                attribute = this.createAttribute(name, parameter, binderFactory, webRequest);
+            } catch (BindException var10) {
+                if (this.isBindExceptionRequired(parameter)) {
+                    throw var10;
+                }
+
+                if (parameter.getParameterType() == Optional.class) {
+                    attribute = Optional.empty();
+                }
+				//错误信息记录到 bindingResult
+                bindingResult = var10.getBindingResult();
+            }
+        }
+		//有错则代表实例化对象出错，就不继续绑定值了
+        if (bindingResult == null) {
+            WebDataBinder binder = binderFactory.createBinder(webRequest, attribute, name);
+            if (binder.getTarget() != null) {
+                if (!mavContainer.isBindingDisabled(name)) {
+                    //具体执行绑定：doBind里面遍历参数去setPropertyValues
+                    this.bindRequestParameters(binder, webRequest);
+                }
+
+                this.validateIfApplicable(binder, parameter);
+                if (binder.getBindingResult().hasErrors() && this.isBindExceptionRequired(binder, parameter)) {
+                    throw new BindException(binder.getBindingResult());
+                }
+            }
+
+            if (!parameter.getParameterType().isInstance(attribute)) {
+                attribute = binder.convertIfNecessary(binder.getTarget(), parameter.getParameterType(), parameter);
+            }
+
+            bindingResult = binder.getBindingResult();
+        }
+
+        Map<String, Object> bindingResultModel = bindingResult.getModel();
+        mavContainer.removeAttributes(bindingResultModel);
+        mavContainer.addAllAttributes(bindingResultModel);
+        return attribute;
+    }
+```
+
+执行参数类型转换后绑定
+
+```java
+private void processLocalProperty(AbstractNestablePropertyAccessor.PropertyTokenHolder tokens, PropertyValue pv) {
+    //根据属性名去找，如果有对应的get/set，则会返回ph， 如果没有该属性或者没有get/set就返回空，不执行绑定
+    //返回ph还需要判断是否需要类型转换，根据属性的类型和当前类型找合适的converter，然后执行转换。比如StringToNumberConverterFactory.convert   string转int 
+        AbstractNestablePropertyAccessor.PropertyHandler ph = this.getLocalPropertyHandler(tokens.actualName);
+        if (ph != null && ph.isWritable()) {
+            Object oldValue = null;
+
+            PropertyChangeEvent propertyChangeEvent;
+            try {
+                Object originalValue = pv.getValue();
+                Object valueToApply = originalValue;
+                //是否需要转换类型
+                if (!Boolean.FALSE.equals(pv.conversionNecessary)) {
+                    if (pv.isConverted()) {
+                        valueToApply = pv.getConvertedValue();
+                    } else {
+                        if (this.isExtractOldValueForEditor() && ph.isReadable()) {
+                            try {
+                                oldValue = ph.getValue();
+                            } catch (Exception var8) {
+                                Exception ex = var8;
+                                if (var8 instanceof PrivilegedActionException) {
+                                    ex = ((PrivilegedActionException)var8).getException();
+                                }
+
+                                if (logger.isDebugEnabled()) {
+                                    logger.debug("Could not read previous value of property '" + this.nestedPath + tokens.canonicalName + "'", ex);
+                                }
+                            }
+                        }
+						//关键是这一句，根据转换器转换成对应类型的值
+                        valueToApply = this.convertForProperty(tokens.canonicalName, oldValue, originalValue, ph.toTypeDescriptor());
+                    }
+
+                    pv.getOriginalPropertyValue().conversionNecessary = valueToApply != originalValue;
+                }
+				//正式赋值  反射执行setXxx
+                ph.setValue(valueToApply);
+            } catch (TypeMismatchException var9) {
+                throw var9;
+            } catch (InvocationTargetException var10) {
+                propertyChangeEvent = new PropertyChangeEvent(this.getRootInstance(), this.nestedPath + tokens.canonicalName, oldValue, pv.getValue());
+                if (var10.getTargetException() instanceof ClassCastException) {
+                    throw new TypeMismatchException(propertyChangeEvent, ph.getPropertyType(), var10.getTargetException());
+                } else {
+                    Throwable cause = var10.getTargetException();
+                    if (cause instanceof UndeclaredThrowableException) {
+                        cause = cause.getCause();
+                    }
+
+                    throw new MethodInvocationException(propertyChangeEvent, cause);
+                }
+            } catch (Exception var11) {
+                propertyChangeEvent = new PropertyChangeEvent(this.getRootInstance(), this.nestedPath + tokens.canonicalName, oldValue, pv.getValue());
+                throw new MethodInvocationException(propertyChangeEvent, var11);
+            }
+        } else if (pv.isOptional()) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Ignoring optional value for property '" + tokens.actualName + "' - property not found on bean class [" + this.getRootClass().getName() + "]");
+            }
+
+        } else {
+            throw this.createNotWritablePropertyException(tokens.canonicalName);
+        }
+    }
+```
+
+
+
+## JSR303数据校验
+
+### 如何校验
+
+1. 使用jsr303 验证标准
+
+2. 加入hibernate validator验证框架 
+
+3. 在springmvc.xml配置文件中加入<mvc:annotation-driven />
+
+4. 在需要校验的bean属性上加注解 ，比如常见的不能为空@notNull。 
+
+5. 在目标方法上加上@Valid注解。 //如果没写则不会验证，还有groups 方法和属性上需要统一。
+
+   
+
+TicketId.class
+
+```java
+
+//message：校验不通过提示的信息
+//groups：分组，代表适用于哪个类的哪个方法校验。比如在XXX类.xxx方法校验，数组形式，多个逗号分隔
+//校验不能为空
+public class TicketId implements Serializable {
+    //忽略其他属性
+	@NotNull(message = "不能为空", groups = {TicketId.Update.class, TicketId.Insert.class})
+	//校验最小值
+	@Min(value = 1, message = "必须为数字", groups = {TicketId.Insert.class})
+    private Integer start;
+}
+```
+
+TicketIdController.class
+
+```java
+@Controller
+@ResponseBody
+@RequestMapping("/ticket_id")
+public class TicketIdController {
+    //忽略一些代码....
+    
+    @PostMapping("/update")
+    @ApiOperation("修改id范围")
+    @RequiresPermissions("/ticket_id/update")
+    public HashMap update(@Validated({TicketId.Update.class}) @RequestBody TicketId ticketId, BindingResult result){
+        //调用service
+        return ticketIdService.update(ticketId);
+    }
+}
+```
 
 
 
@@ -515,6 +838,8 @@ public class GlobalExceptionResolver extends DefaultHandlerExceptionResolver {
 
 常用的有登陆拦截器， 其实可以搭配日期记录功能。
 
+### 配置
+
 前提：spring-mvc中定义拦截器
 
 ```java
@@ -566,6 +891,7 @@ public class LoginInterceptor implements HandlerInterceptor {
      // 未登录，重定向到登录页面
         
 //        request.getRequestDispatcher("/WEB-INF/pages/login.jsp").forward(request, response);
+        //如果返回false则不会执行目标方法。。 详细原因看最后的源码执行流程
         return false;
     }
 
@@ -581,6 +907,43 @@ public class LoginInterceptor implements HandlerInterceptor {
 ```
 
 
+
+### 执行顺序
+
+压栈过程，先入后出。
+
+拦截器1前置-->拦截器2前置...-->目标方法...-->拦截器2后置-->拦截器1后置
+
+注意：
+
+​	某一个拦截器返回了false，后续的拦截器和目标方法不执行，但是前面已经执行了的拦截器还是会执行afterCompletion 方法。
+
+源码实现：
+
+​	其实就是**控制for循环，前置的时候是正序遍历拦截器for i++，后置的时候逆序遍历拦截器for i--**
+
+​	有一个计数器interceptorIndex。执行preHandle的时候从-1开始增加。
+
+执行afterCompletion 的时候for(int i=interceptorIndex; i>=0; i--)。但是第一个拦截器是ConversionServiceExposingInteceptor。第二个拦截器才是自己的拦截器 i=0
+
+## 国际化
+
+根据不同的语言要求，显示不同的语言。
+
+原理：
+
+​	获取name=local的参数的值，解析为Local对象。
+
+​	获取Resolver对象，设置到Session的属性中。
+
+​	后续使用直接从session里面读取Local对象，使用对应的语言。
+
+步骤：
+
+1. 配置国际化资源文件i18n.zh-cn.properties  + i18n.
+2. 使用JSTL的fmt标签
+3. bean中注入ResourceBundleMessageSource的实例
+4. 配置LocalResolver 和 LocalChangeInteceptor  
 
 ## 源码执行流程
 
@@ -701,6 +1064,7 @@ protected void doDispatch(HttpServletRequest request, HttpServletResponse respon
             }
          }
          //4. 拦截器preHandle方法前置处理
+          //注意：如果前置拦截器返回false，则直接return了 不会执行后续拦截器和方法了。
          if (!mappedHandler.applyPreHandle(processedRequest, response)) {
             return;
          }
