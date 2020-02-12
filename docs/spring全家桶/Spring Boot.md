@@ -2686,6 +2686,8 @@ server.tomcat.xxx
 
 2、编写一个**EmbeddedServletContainerCustomizer**：嵌入式的Servlet容器的定制器；来修改Servlet容器的配置
 
+//springboot2.X后改成： ServletWebServerFactoryCustomizer
+
 ```java
 @Bean  //一定要将这个定制器加入到容器中
 public EmbeddedServletContainerCustomizer embeddedServletContainerCustomizer(){
@@ -2833,42 +2835,50 @@ Undertow
 
 
 
-EmbeddedServletContainerAutoConfiguration：嵌入式的Servlet容器自动配置？
+ServletWebServerFactoryConfiguration：嵌入式的Servlet容器自动配置？
 
 ```java
-@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE)
-@Configuration
-@ConditionalOnWebApplication
-@Import(BeanPostProcessorsRegistrar.class)
-//导入BeanPostProcessorsRegistrar：Spring注解版；给容器中导入一些组件
-//导入了EmbeddedServletContainerCustomizerBeanPostProcessor：
-//后置处理器：bean初始化前后（创建完对象，还没赋值赋值）执行初始化工作
-public class EmbeddedServletContainerAutoConfiguration {
-    
-    @Configuration
-	@ConditionalOnClass({ Servlet.class, Tomcat.class })//判断当前是否引入了Tomcat依赖；
-	@ConditionalOnMissingBean(value = EmbeddedServletContainerFactory.class, search = SearchStrategy.CURRENT)//判断当前容器没有用户自己定义EmbeddedServletContainerFactory：嵌入式的Servlet容器工厂；作用：创建嵌入式的Servlet容器
-	public static class EmbeddedTomcat {
+@Configuration(proxyBeanMethods = false)
+class ServletWebServerFactoryConfiguration {
+
+	@Configuration(proxyBeanMethods = false)
+    //判断当前是否引入了tomcat依赖
+	@ConditionalOnClass({ Servlet.class, Tomcat.class, UpgradeProtocol.class })
+    //容器中没有用户自定义的ServletWebServerFactory
+	@ConditionalOnMissingBean(value = ServletWebServerFactory.class, search = SearchStrategy.CURRENT)
+	static class EmbeddedTomcat {
 
 		@Bean
-		public TomcatEmbeddedServletContainerFactory tomcatEmbeddedServletContainerFactory() {
-			return new TomcatEmbeddedServletContainerFactory();
+		TomcatServletWebServerFactory tomcatServletWebServerFactory(
+				ObjectProvider<TomcatConnectorCustomizer> connectorCustomizers,
+				ObjectProvider<TomcatContextCustomizer> contextCustomizers,
+				ObjectProvider<TomcatProtocolHandlerCustomizer<?>> protocolHandlerCustomizers) {
+			TomcatServletWebServerFactory factory = new TomcatServletWebServerFactory();
+			factory.getTomcatConnectorCustomizers()
+					.addAll(connectorCustomizers.orderedStream().collect(Collectors.toList()));
+			factory.getTomcatContextCustomizers()
+					.addAll(contextCustomizers.orderedStream().collect(Collectors.toList()));
+			factory.getTomcatProtocolHandlerCustomizers()
+					.addAll(protocolHandlerCustomizers.orderedStream().collect(Collectors.toList()));
+			return factory;
 		}
 
 	}
-    
-    /**
+
+	/**
 	 * Nested configuration if Jetty is being used.
 	 */
-	@Configuration
-	@ConditionalOnClass({ Servlet.class, Server.class, Loader.class,
-			WebAppContext.class })
-	@ConditionalOnMissingBean(value = EmbeddedServletContainerFactory.class, search = SearchStrategy.CURRENT)
-	public static class EmbeddedJetty {
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass({ Servlet.class, Server.class, Loader.class, WebAppContext.class })
+	@ConditionalOnMissingBean(value = ServletWebServerFactory.class, search = SearchStrategy.CURRENT)
+	static class EmbeddedJetty {
 
 		@Bean
-		public JettyEmbeddedServletContainerFactory jettyEmbeddedServletContainerFactory() {
-			return new JettyEmbeddedServletContainerFactory();
+		JettyServletWebServerFactory JettyServletWebServerFactory(
+				ObjectProvider<JettyServerCustomizer> serverCustomizers) {
+			JettyServletWebServerFactory factory = new JettyServletWebServerFactory();
+			factory.getServerCustomizers().addAll(serverCustomizers.orderedStream().collect(Collectors.toList()));
+			return factory;
 		}
 
 	}
@@ -2876,27 +2886,32 @@ public class EmbeddedServletContainerAutoConfiguration {
 	/**
 	 * Nested configuration if Undertow is being used.
 	 */
-	@Configuration
+	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass({ Servlet.class, Undertow.class, SslClientAuthMode.class })
-	@ConditionalOnMissingBean(value = EmbeddedServletContainerFactory.class, search = SearchStrategy.CURRENT)
-	public static class EmbeddedUndertow {
+	@ConditionalOnMissingBean(value = ServletWebServerFactory.class, search = SearchStrategy.CURRENT)
+	static class EmbeddedUndertow {
 
 		@Bean
-		public UndertowEmbeddedServletContainerFactory undertowEmbeddedServletContainerFactory() {
-			return new UndertowEmbeddedServletContainerFactory();
+		UndertowServletWebServerFactory undertowServletWebServerFactory(
+				ObjectProvider<UndertowDeploymentInfoCustomizer> deploymentInfoCustomizers,
+				ObjectProvider<UndertowBuilderCustomizer> builderCustomizers) {
+			UndertowServletWebServerFactory factory = new UndertowServletWebServerFactory();
+			factory.getDeploymentInfoCustomizers()
+					.addAll(deploymentInfoCustomizers.orderedStream().collect(Collectors.toList()));
+			factory.getBuilderCustomizers().addAll(builderCustomizers.orderedStream().collect(Collectors.toList()));
+			return factory;
 		}
-
 	}
+}
 ```
 
-1）、EmbeddedServletContainerFactory（嵌入式Servlet容器工厂）
+1）、ServletWebServerFactory（嵌入式Servlet容器工厂）
 
 ```java
-public interface EmbeddedServletContainerFactory {
-
-   //获取嵌入式的Servlet容器
-   EmbeddedServletContainer getEmbeddedServletContainer(
-         ServletContextInitializer... initializers);
+@FunctionalInterface
+public interface ServletWebServerFactory {
+	//获取嵌入式servlet容器
+	WebServer getWebServer(ServletContextInitializer... initializers);
 
 }
 ```
@@ -2909,48 +2924,60 @@ public interface EmbeddedServletContainerFactory {
 
 
 
-3）、以**TomcatEmbeddedServletContainerFactory**为例
+3）、以**TomcatServletWebServerFactory**为例
 
 ```java
 @Override
-public EmbeddedServletContainer getEmbeddedServletContainer(
-      ServletContextInitializer... initializers) {
-    //创建一个Tomcat
-   Tomcat tomcat = new Tomcat();
+public WebServer getWebServer(ServletContextInitializer... initializers) {
+    if (this.disableMBeanRegistry) {
+        Registry.disableRegistry();
+    }
+    //新建一个tomcat 但是没有初始化
+    Tomcat tomcat = new Tomcat();
+    //配置tomcat
+    File baseDir = (this.baseDirectory != null) ? this.baseDirectory : createTempDir("tomcat");
+    tomcat.setBaseDir(baseDir.getAbsolutePath());
+    Connector connector = new Connector(this.protocol);
+    connector.setThrowOnFailure(true);
+    tomcat.getService().addConnector(connector);
+    customizeConnector(connector);
+    tomcat.setConnector(connector);
+    tomcat.getHost().setAutoDeploy(false);
+    configureEngine(tomcat.getEngine());
+    for (Connector additionalConnector : this.additionalTomcatConnectors) {
+        tomcat.getService().addConnector(additionalConnector);
+    }
+    prepareContext(tomcat.getHost(), initializers);
     
-    //配置Tomcat的基本环节
-   File baseDir = (this.baseDirectory != null ? this.baseDirectory
-         : createTempDir("tomcat"));
-   tomcat.setBaseDir(baseDir.getAbsolutePath());
-   Connector connector = new Connector(this.protocol);
-   tomcat.getService().addConnector(connector);
-   customizeConnector(connector);
-   tomcat.setConnector(connector);
-   tomcat.getHost().setAutoDeploy(false);
-   configureEngine(tomcat.getEngine());
-   for (Connector additionalConnector : this.additionalTomcatConnectors) {
-      tomcat.getService().addConnector(additionalConnector);
-   }
-   prepareContext(tomcat.getHost(), initializers);
-    
-    //将配置好的Tomcat传入进去，返回一个EmbeddedServletContainer；并且启动Tomcat服务器
-   return getTomcatEmbeddedServletContainer(tomcat);
+    //返回tomcat，调用tomcat内部的初始化流程
+    return getTomcatWebServer(tomcat);
 }
+```
+
+```java
+//接着上面的tomcat内部流程： TomcatWebServer
+public TomcatWebServer(Tomcat tomcat, boolean autoStart) {
+		Assert.notNull(tomcat, "Tomcat Server must not be null");
+		this.tomcat = tomcat;
+		this.autoStart = autoStart;
+    	//初始化方法..
+		initialize();
+	}
 ```
 
 4）、我们对嵌入式容器的配置修改是怎么生效？
 
+```java
+ServerProperties、WebServerFactoryCustomizer
 ```
-ServerProperties、EmbeddedServletContainerCustomizer
-```
 
 
 
-**EmbeddedServletContainerCustomizer**：定制器帮我们修改了Servlet容器的配置？
+**WebServerFactoryCustomizer**：定制器帮我们修改了Servlet容器的配置？
 
 怎么修改的原理？
 
-5）、容器中导入了**EmbeddedServletContainerCustomizerBeanPostProcessor**
+5）、容器中导入了**WebServerFactoryCustomizerBeanPostProcessor**
 
 ```java
 //初始化之前
