@@ -69,7 +69,18 @@
    3. connection.commit();    //正常执行未报错会提交事务
    4. connection.rollback();  //catch异常了会执行事务回滚
 
-   
+# 2020-01-21
 
-   
+放假回家过年
 
+# 2020-02-03
+
+在家学习spring boot
+
+# 2020-02-12
+
+spring boot学习完毕
+
+# 2020-02-13
+
+中间件：redis
