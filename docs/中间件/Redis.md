@@ -666,6 +666,48 @@ zrangebyscore student 60 80
 
 
 
+### 高级数据类型
+
+#### bitmap
+
+利用bit里面的位来存数据。比如是否，是即1，否即0.节约空间。
+
+#### hyperlog
+
+...
+
+#### GEO
+
+坐标轴距离计算。像附近的人，外卖显示距离等。
+
+- 添加坐标点:    key + 经度 + 维度 + person1 
+
+  geoadd key longitude latitude member
+
+- 获取坐标点
+
+  geopos key [member...]
+
+- **计算坐标点距离**
+
+  geodist key member1 member2 [unit]
+
+- 根据**坐标**求范围内数据
+
+  georedius key longitude latitude [unit]
+
+- 根据**点**求**范围**内数据
+
+  georadiusbymember key member radius [unit] //redius是半径
+
+- 获取指定点对应的坐标hash值
+
+  geohash key [member...]
+
+  
+
+  
+
 
 
 ### 通用操作
@@ -742,12 +784,6 @@ type [key]
 del [key...]
 ```
 
-#### 清空
-
-清空当前库的所有key：flushdb
-
-清空整个redis的所有key：flushall
-
 #### 自增自减
 
 线程安全的
@@ -766,6 +802,48 @@ DECRBY [key] [increment]
 
 
 #### 改名
+
+```txt
+//注意：如果新keyname已经存在，是会覆盖的。并且如果类型不一样，会导致值变为空
+rename [oldkeyname] [newkeyname]
+//优化如下：
+//如果不存在才改名
+renamenx [oldkeyname] [newkeyname]
+```
+
+#### 排序
+
+//只对list，set有用
+
+sort [key] 
+
+#### 查看帮助
+
+help  code
+
+#### 其他
+
+//查看redis情况
+
+**info**
+
+//查看服务是否通
+
+ping	//会返回pong
+
+//选择数据库
+
+select  db（一共16个 即最大15最小0）
+
+//移动数据
+
+move key db
+
+//数据清除
+
+清空当前库的所有key：flushdb
+
+清空整个redis的所有key：flushall
 
 ### 编码规范
 
@@ -789,63 +867,284 @@ DECRBY [key] [increment]
 - 回滚事务：discard
 - 监视：watch key     //可以防止其他进程去改变key的值，如果已经被改变则本次事务会回滚。
 
+
+
 注意：
+
+​	**watch需要在事务之前。**
+
+​	watch的值改变之后，其后面的事务，不管有么有修改到监视的key，都会回滚。
 
 ​	事务保证一起提交不被插队。语法错误不会导致回滚，但是命令错误会导致回滚。
 
+```java
+//在redisTemplate里面，加事务也是一样。
+redisTemplate.multi();
+redisTemplate.xxx1
+redisTemplate.xxx2
+redisTemplate.exec();
+```
+
+
+
+
+
 ## 持久化
+
+注意修改配置需要重启服务。
+
+关注结果：快照形式。存储格式简单，存储最终结果。关注点在数据。即RDB
+
+关注过程：日志形式。存储格式复杂，存储操作步骤，关注点在操作。即AOF
 
 ### RDB
 
+
+
+**手动持久化**
+
+#### 命令
+
+#### (redis-cli中输入)
+
+- save：量大的化很消耗性能，可能会长时间阻塞线程。**弃用**
+- bgsave：（back ground save）后台择机，利用fork函数新建子线程执行，所以不会阻塞主线程。
+- save second changes：配置的自动持久化（其本质还是gbsave）。**在配置文件中**设置在second秒内达到了changes次变化就**触发**进行持久化。注意：是变化，而不是新增。即删除或者重新set值都算变化（即使set同一个值也算）。
+
+#### 配置
+
+（配置文件中修改）
+
+- dbfilename：文件名，通常设置成dump-端口号.rdb
+- dir： 文件保存路径，通常放在存储空间大的目录中的data下
+- rdbcompression：yes 持久化使是否压缩。采用LZF压缩。
+- rdbchecksub：yes 是否进行文件格式校验。读写均要校验。
+- **stop-writes-on-bgsave-error**：yes.  后台序列化出错的时候是否停止 (bgsave才有)
+
+优点：
+
+- 存储压缩的二进制数据，存储效率高
+- 存储是在某个时间点执行的，很适合数据备份，全量复制等场景。
+- RDB速度比AOF快很多
+- 应用：每隔几小时备份一次，用于灾难恢复。
+
+缺点：
+
+- 无法实时持久化，肯定会丢失一部分数据。
+- bgsave要执行fork命令新建线程执行持久化，需要多消耗内存。
+- 版本未统一，可能不同的redis版本存在兼容性。
+
 ### AOF
+
+Append only file
+
+#### 三种策略
+
+- always：**每次**写入都会同步到AOF文件中，零误差，但是性能差
+- everysec：**每秒**同步到AOF文件中，准确性相对较高，性能也较高（推荐）
+- no：**系统控制**每次同步AOF文件，整体不可控。
+
+#### 配置
+
+- appendonly： 默认no，需要修改为yes，即使用AOF持久化
+
+- appendfsync：使用何种策略，三选一，即always, everysec, no
+- appendfilename：修改aof名称。建议appendonly-端口号.aof
+
+#### 重写
+
+重写规则：
+
+- 超时的数据不写入AOF文件
+- 忽略无效指令，只写入最终值。比如del key,  set key1 value1 set key2 value2
+- 对同一数据多条写命令合并为一条。比如lpush list1 a, lpush list1 b, lpush list1 c 可以合并为lpush list1 a b c .
+
+重写方式：
+
+- 手动重写：bgrewriteaof。  即bg- rewirte- aof
+- 自动重写：
+  - auto-aof-rewirte-min-size  size.     即按增长大小来，达到即重写
+  - auto-aof-rewrite-percentage percentage     即按增长比例来，达到即重写。，比如10%,原本30%，现在40%了就会触发重写。
 
 ### 混合持久化
 
+
+
 ## 键值过期策略
 
-### 管道技术Pipeline
+### 概念
 
-### 附件的人
+redis里面内存模型有点像java那种堆栈型，每个数据都有其值和对应的内存地址，expire过期的时候直接修改地址值就行了。
 
-统计算法
+但是遇到cpu比较繁忙的时候，并不要求立刻实现，而是闲下来的时候去执行，所以就需要策略去控制这种情况。
 
-过滤器
+### 策略
 
-内存淘汰机制
+- 定时删除：
+  - 创建定时器，到时间就执行清理。
+  - 用处理器性能换存储空间。会增加cpu压力，但是内存可以很好的控制。
 
-### 消息队列
+- 惰性删除：
+  - 过期不处理，但是有访问的时候再处理。
+  - 与上面相反，拿内存换cpu性能。
+
+- 定期删除
+  - 简单理解就是每秒去遍历（双重遍历数据库的key，随机抽取，有过期就删除，并且看过期比例，如果超过设置的比例，则代表可能过期的很多了，则再次抽取，直到小于这个比例；再去下一个数据库执行相同的事情。redis里面有16个库）
+  - 这种方案
+
+## 逐出算法
+
+### 含义
+
+可能会内存不够，所以每次写入都会调用freeMemoryIfNeeded()去检测是否足够。然后根据**逐出算法**删除一些key。如果确实不够，就会抛错。
+
+### 配置
+
+- 最大可用内存：maxmemory
+- 待删除数据个数：maxmemory-samples
+- 删除策略：maxmemory-policy
+
+### 策略
+
+- 检测易失数据：可能会过期的数据
+  - volatile-LRU：least recently used    同一时间段内，时间最长没被用的淘汰
+  - volatile-LFU：least Frequently Used  同一时间段内，使用次数最少的淘汰
+  - volatile-ttl：挑选将要过期的淘汰
+  - volatile-random：随机淘汰
+- 检测全库数据：所有数据
+  - allkeys-LRU
+  - allkeys-LFU
+  - allkeys-random
+- 放弃数据驱逐：即不删除，直接对外抛错，内存不够了
+
+## 配置
+
+redis.conf文件的设置
+
+### 服务器设置
+
+- 以守护进程的方式运行（后台）
+
+  daemonize yes|no 
+
+- 绑定主机地址
+
+  bind ip
+
+- 端口号
+
+  port 6379
+
+- 数据库数量
+
+  database 16
+
+### 日志配置
+
+- 日志级别  默认时verbose，  生产环境一般用notice
+
+  loglevel debug|**verbose**|notice|warning
+
+- 日志名
+
+  logfile  端口号.log
+
+### 客户端配置
+
+- 同一时间最大连接数。默认无限制
+
+  maxclients 0
+
+- 最大等待时长，达到后即断开，如果需要关闭，设置为0
+
+  timeout 300
+
+### 多服务器配置
+
+可能很多redis服务器，并且大部分配置都相似。一改要改很多。所以提供了提起公共的功能，便于维护。
+
+​	include /path/server-端口号.conf
 
 # 高级
 
-### 分布式锁
+## 分布式锁
 
-### 延迟队列
+redission.org //实现了分布式锁
 
-### 定时任务
+在分布式架构下，jdk自带的synchronized关键字并不管用。
 
-### RedisSearch
+所以可以利用redis里面的某些排他操作实现分布式锁。比如setnx key value。
 
-### 性能优化
+原理：利用排他性
 
-### 主从设置
+```java
+public String sellTicket() throws Exception{
+    String lockKey = "lockKey";
+    String uuid = UUID.randomUUID().toString();
+try{
+    /***
+    //成功的会返回true,而其他线程则会返回false.直到运行完为止。
+    Boolean flag =  redisTemplate.opsForValue().setIfAbsent(lockKey,"1");
+    //改进2：如果宕机等清空，不执行了，也让锁自动消失。
+    redisTemplate.expire(lockKey,30,TimeUnit.SECENDS);
+    */
+    
+    //改进3:如果第一行boolean就宕机了，那后面也不会执行。
+    //所以希望两行是一个原子操作。即下面
+    //Boolean flag =  redisTemplate.opsForValue().setIfAbsent(lockKey,"1",30,TimeUnit.SECENDS);    
+    Boolean flag =  redisTemplate.opsForValue().setIfAbsent(lockKey,uuid,30,TimeUnit.SECENDS);
+    if(!flag){
+        retrun "error";
+    }
+    //执行正常的业务逻辑，比如扣减库存等
+    .....
+}
+    //改进1：上面的抛异常之后也需要执行删除操作，避免死锁。
+finally{
+    //改进4：自己设置的锁自己释放。才能控制并发。释放锁的时候比较值是否一样。uuid
+    if(uuid.equals(redisTemplate.opsForValue().get(lockKey))){
+        //删除掉锁，避免之后的都进不去。
+       redisTemplate.delete(lockKey); 
+    }
+    
+}
+return "end";
+}
+```
 
-### 哨兵模式
 
-### 集群模式
+
+## 延迟队列
+
+## 定时任务
+
+## RedisSearch
+
+## 性能优化
+
+## 主从复制
+
+
+
+## 哨兵模式
+
+
+
+## 集群
 
 无中心化，至少需要3主3从才能构成集群。
 
-#### master不可用
+### master不可用
 
 投票机制来决定。所有的master参与投票，半数以上的master与其他master节点通信超时，则认为master不可用。
 
-#### 集群不可用
+### 集群不可用
 
 集群任意master挂掉，且当前master没有slave，集群进入fail。
 
 集群超过半数以上master挂掉，无论有无slave，集群进入fail状态
 
-#### 配置集群
+### 配置集群
 
 --cluster create
 
@@ -890,5 +1189,6 @@ chmod u+x shutdown.sh	//修改文件属性，变成可执行文件
 
 
 
-### 总结
+# 企业级解决方案
 
+​	
