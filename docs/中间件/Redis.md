@@ -1118,21 +1118,140 @@ return "end";
 
 ## 定时任务
 
-## RedisSearch
-
-## 性能优化
-
 ## 主从复制
 
+互联网三高架构：高并发，高性能，高可用。 
+
+可用性：高可用业界目标5个9，即99.999%。平均一年宕机时长在全年中占比不到0.001%.即315s以下。
+
+单机redis的风险：机器故障+容量瓶颈
+
+### 思想
+
+- 一主多从
+- 主可写可读（一般只写），从只读
+- 主机master写数据的时候，自动同步到所有的从机slave中
+- 从可以设置均衡负载，分摊压力
+- 故障恢复，数据备份。
+
+### 工作流程
+
+1. 建立连接阶段
+2. 数据同步阶段
+3. 命令传播阶段
+
+#### 建立连接
+
+slave连接master（从机发出）
+
+- slaveof <masterIP> <masterPORT>
+
+- redis-server --slaveof <masterIP> <masterPORT>
+
+断开主从（从机发出）
+
+​	slaveof no one  
+
+![img](D:\gitubDATA\Study\docs\中间件\images\主从工作流程.png)
 
 
-## 哨兵模式
+
+#### 同步数据
+
+问：如果是有多台slave先后加入 ，后续的slave同步也需要先创建RDB吗  还是使用之前的RDB？？？
+
+答：每新加入一个，发送现有的rdb文件给slave.（之前的rdb文件，至于rdb文件什么更新，根据策略来。）
+
+全量复制情况：runid不一致，offset在缓冲区已经找不到了，全新的slave..
+
+1. slave请求同步
+2. master创建RDB同步数据（全量复制）
+3. slave恢复RDB同步数据( 通过socket接收)
+4. slave请求同步增量数据（部分复制）
+5. slave恢复增量数据完成。
+
+![img](D:\gitubDATA\Study\docs\中间件\images\数据同步+命令传播.png)
+
+#### 命令传播阶段
+
+//每台slave都有自己唯一的标识runid，请求数据则是根据offset来看还需要取哪些数据。
+
+slave发送replconf ack <offset>	//根据offset请求同步数据
+
+### 复制缓冲区
+
+master对应了很多slave，不可能每一个slave都重新去拿，而是维护了一个**复制缓冲区**，记录了每一次的操作记录（写的 会改变数据的）。
+
+同步的时候，slave会从缓冲区里面拿数据，每个slave可能因为网络原因进度不一样。所以每个slave会单独记录自己的**offset偏移量**。 master也会记录每个slave的offset。
+
+如果offset一样，则继续拿；如果不一样则说明中间断了没收到，则以slave的为准重新拿。
 
 
+
+### 心跳机制
+
+即探测双方是否都在线。
+
+master：
+
+- 指令：ping
+- 周期：由repl-ping-slave-period决定。默认10s/次
+- 作用：判断slave是否在线。
+- 查询：INFO replication   //获取最后一次连接时间间隔，lag项维持在0或1则正常
+
+slave：
+
+- 指令：REPLCONF ACK {offset}
+- 1s
+- 作用1：汇报当前offset，获取最新的数据变更指令
+- 作用2：看master是否在线。
+
+### 常见问题
+
+1. master重启，runid重新生成，导致全量复制
+   1. 原因：master数据量越来越大，重启之后，runid会重新生成，导致slave需要重新重头获取数据（因为runid改变了）
+   2. 优化方案：控制重启后runid不变
+2. 复制缓冲区过小，导致全量复制
+   1. 优化方案：修改缓冲区大小，repl-backlog-size
+   2. 缓冲区大小设定：
+      1. 测算master-slave重连的平均时长second
+      2. 获取master每秒产生写指令数据总量：write_size_per_second
+      3. 则缓冲区大小为：2* second* write_size_per_second
+3. 网络不稳定/中断，导致slave和master断开连接
+   1. 优化方案：
+      1. 调低slave发送replconf ack <offset>的频率
+      2. 调高master ping slave的频率
+4. 多个slave拿到数据不一致
+   1. 原因：网络延迟
+   2. 优化方案：
+      1. 通常将所有的slave放在一起，最大限度降低网络延迟干扰
+      2. 监控主从节点延迟（通过offset判断），如果某些slave延迟过大，则暂时屏蔽访问。（slave-server-stale-data   yes/no）。慎用！！除非对数据一致性要求很高。
+
+## 哨兵
+
+顾名思义，哨兵(sentinel)是一个分布式系统，一个**监控**措施，投票**选择**新的master.
+
+1. 监控：同步信息
+2. 通知：保持联通
+3. 故障转移：
+   1. 发现问题
+   2. 竞选负责人
+   3. 选择新master
+   4. 让其他slave切换到新master。 
+
+s_down：哨兵发现master宕机了，标记状态。
+
+o_down：超过半数发现master宕机了，标记真正的认定宕机。	//这个半数票是可以通过配置文件设置。
 
 ## 集群
 
 无中心化，至少需要3主3从才能构成集群。
+
+### 原理
+
+多个master共同分摊请求，负载均衡。处理写请求逻辑是：所有的master都分配自己的区域slots(总共16384 = 16*1024，根据master数量平均分配)。
+
+key来的时候会根据某个算法计算出一个hash值，然后去%16384得到一个值即slots的值（和master里面的slots一样），就知道写哪个了。（**每个master都会维护其他master的分区信息。**）
 
 ### master不可用
 
@@ -1148,7 +1267,24 @@ return "end";
 
 --cluster create
 
+--操作数据记得加 **-c**
+
 ```txt
+======================配置================
+//设置加入cluster
+cluster-enabled yes|no
+
+//cluster配置文件名
+cluster-config-file <filename>
+
+//节点服务响应时间，判断是否该节点已下线
+cluster-node-timeout <milliseconds>
+
+//master的最小slave数量
+cluster-migration-barrier <count>  
+
+
+=====================启动==========================
 //redis-cli中输入命令
 --cluster create ip1:端口1 ip2:端口2 .....ipN:端口N --cluster-replicas 1
 //会自动帮你配置主从关系，回复yes就生效，no就自己配置
@@ -1191,4 +1327,101 @@ chmod u+x shutdown.sh	//修改文件属性，变成可执行文件
 
 # 企业级解决方案
 
-​	
+## 缓存预热
+
+### 概念
+
+即才启动服务器，缓存是空的，假设请求瞬间很高，就相当于redis没起作用，压力会很大。所以需要提前准备好数据。
+
+### 方案
+
+根据日常使用情况，将缓存分门别类，根据访问频次优先级考虑，进行准备。
+
+使用固定脚本进行触发。 
+
+## 缓存雪崩
+
+### 概念
+
+在较短的时间内，大量的key过期导致访问不到。发生连续效应
+
+### 方案
+
+**中心思想：多级过滤，稀释集中过期的key**
+
+1. 页面静态化处理，能不访问后台就不访问
+2. 构建多级缓存：ngix缓存--》redis缓存--》ehcache缓存
+3. mysql查询优化
+4. 灾难预警机制：监控redis服务器cpu，内存，响应时间等
+5. 限流：牺牲部分用户体验，从源头减少访问。
+
+## 缓存击穿
+
+### 概念
+
+相对于雪崩，要好一些，只是**少数高频**的key过期，导致访问不到而去请求数据库。
+
+可能更常见一些。比如秒杀商品的访问。
+
+### 方案
+
+1. 预先设定其过期时间延长。
+2. 其余方案和雪崩类似。
+3. 加锁：分布式锁。慎重！？
+
+## 缓存穿透
+
+### 概念
+
+- redis大面积的命中失效
+- 非法url访问 //黑客攻击
+
+### 方案
+
+- 白名单，过滤
+- 实时监控，比如高峰时段超过正常的50倍，非高峰时段超过5倍即报警
+- key加密，过滤
+
+## 性能指标
+
+### 指标
+
+| name                      | description                |      |
+| ------------------------- | -------------------------- | ---- |
+| latency                   | 响应时长                   |      |
+| instantaneous_ops_per_sec | QPS （平均每秒处理请求数） |      |
+| hit rate                  | 命中率                     |      |
+
+
+
+### 监控方式
+
+- redis-benchmark
+
+  性能测试
+
+```shell
+//redis自带的压测，比如100个连接，5000次请求
+
+//注意：和redis-cli类似的命令，**而不是在redis-cli里面执行**。
+
+redis-benchmark  -c 100 -n 5000
+```
+
+- monitor
+
+  监控日志
+
+- slowlog  
+
+  慢查询的日志
+
+```shell
+slowlog get
+  
+slowlog len
+  
+slowlog reset  //重置
+```
+
+  
