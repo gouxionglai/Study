@@ -125,3 +125,64 @@ spring boot学习完毕
 中间玩了几天
 
 从周一开始看rabbitMQ，预计15号完成
+
+# 2020-04-26
+
+rabbitMQ完成
+
+接下来：多线程
+
+day01 多线程
+
+# 2020-04-27
+
+day02 多线程
+
+多线程视频 ，表示水分很重。没学到什么精华。
+
+明天再找个质量高点的看看吧。
+
+多线程 ！！
+
+# 2020-04-28
+
+day03 多线程   more and more
+
+实际：今天修复线上bug去了 dss双选系统。用的strut2做webmvc  。
+
+问题：有nginx情况下，用户发送给tomcat的请求，并且是代码上有重定向的（struts2配置），正常请求没问题，但是重定向之后端口被改成了80（原端口可能是10080）。导致找不到资源.
+
+```java
+<action name="PaperTitleRejectMgrEdit" class="xxxx.dss.PaperTitleAction" method="reject">
+    <!--<result name="success" type="redirectAction">PaperTitleAuditMgrList</result>-->   
+    <result name="success" type="chain">PaperTitleAuditMgrList</result>
+        </action>
+```
+
+
+
+# 2020-04-29
+
+day04 多线程
+
+# 2020-04-30
+
+day05 多线程 ！必须完成了！！！
+
+//呵呵哒。。。
+
+# 2020-05-01
+
+休假到05-06
+
+
+
+# 2020-05-10
+
+多线程其实已经完成了。只是看看其实视频，有么有遗漏的地方。
+
+# 2020-05-18
+
+正式完成多线程。 11-17号什么都没干。。
+
+预计后面一周完成：zookeeper，dubbo, nginx
