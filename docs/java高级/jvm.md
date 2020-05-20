@@ -8,7 +8,7 @@ java内存模型：**Java Memory Model**
 
 64位 = 8个字节。markword里面
 
-![image](images\hotspot.png)
+![image](images/hotspot.png)
 
 synchronize加锁的底层其实就是两个代码：(但是更底层还是 lock cmpxchg)
 
@@ -19,7 +19,7 @@ synchronize加锁的底层其实就是两个代码：(但是更底层还是 lock
 
 ## 对象在内存中的布局
 
-![image](images\对象在内存中的布局.png)
+![image](images/对象在内存中的布局.png)
 
 关于锁的记录信息记录在markword里面。
 
@@ -70,7 +70,7 @@ java虚拟机：
 
 java virtual machine
 
-![image](images\jvm模型.jpg)
+![image](images/jvm模型.jpg)
 
 
 
@@ -434,7 +434,7 @@ java7中只声明了两个变量：低位和高位。
 
 
 
-![image](images\线程生命周期.png)
+![image](images/线程生命周期.png)
 
 
 
@@ -448,7 +448,7 @@ java7中只声明了两个变量：低位和高位。
 
 
 
-![image](images\线程池生命周期.png)
+![image](images/线程池生命周期.png)
 
 new ThreadPoolExecutor(core,max,time,timeUnit,arrayBlockingQueue, factory)
 
@@ -512,7 +512,7 @@ workqueue.take();
 2. 可见性
 3. 有序性
 
-![img](images\jmm模型.png)
+![img](images/jmm模型.png)
 
 ### 可见性
 
@@ -566,7 +566,7 @@ i++实际是三个步骤：
 
 ## AQS
 
-![image](images\AQS.png)
+![image](images/AQS.png)
 
 并发工具包
 
@@ -669,7 +669,7 @@ static final class Node {
 4. 线程1从condition队列里面唤醒到AQS队列，抢占锁（唤醒后不是直接就有锁了还是需要去抢占。AQS原理。）
 5. 线程2执行完毕，释放锁；线程1再次拿到锁，执行完毕。
 
-![image](images\condition.png)
+![image](images/condition.png)
 
 
 
