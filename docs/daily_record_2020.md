@@ -186,3 +186,11 @@ day05 多线程 ！必须完成了！！！
 正式完成多线程。 11-17号什么都没干。。
 
 预计后面一周完成：zookeeper，dubbo, nginx
+
+
+
+# 2020-05-19
+
+zookeeper完毕
+
+dubbo ing
