@@ -1,7 +1,3 @@
----
-typora-copy-images-to: image
----
-
 # IO
 
 参考大佬的博客，写得很详细：
@@ -405,7 +401,7 @@ Netty 作为异步事件驱动的网络，高性能之处主要来自于其 I/O 
 
 请求很多的时候，线程开销很大。造成服务器负担
 
-![img](F:\github\Study\docs\java基础\image\10345180-faaebf9335592620.png)
+![img](image/10345180-faaebf9335592620.png)
 
 
 
@@ -413,7 +409,7 @@ Netty 作为异步事件驱动的网络，高性能之处主要来自于其 I/O 
 
 事件驱动体系结构是目前比较广泛使用的一种。这种方式会定义一系列的事件处理器来响应事件的发生，并且将服务端接受连接与对事件的处理分离。其中，事件是一种状态的改变。比如，tcp中socket的new incoming connection、ready for read、ready for write。
 
-![img](F:\github\Study\docs\java基础\image\10345180-fdaf4d307916cd8f.png)
+![img](image/10345180-fdaf4d307916cd8f.png)
 
 #### reactor
 
@@ -423,7 +419,7 @@ reactor设计模式是event-driven architecture的一种实现方式，处理多
 
 ## netty架构
 
-![img](F:\github\Study\docs\java基础\image\netty架构.png)
+![img](image/netty架构.png)
 
 ## 模块组件
 
@@ -447,7 +443,7 @@ NioSctpServerChannel，异步的 Sctp 服务器端连接，这些通道涵盖了
 
 在 Netty 中每个 Channel 都有且仅有一个 ChannelPipeline 与之对应，它们的组成关系如下：
 
-![img](F:\github\Study\docs\java基础\image\1500839-e1517d17c12255f4.jpg)
+![img](image/1500839-e1517d17c12255f4.jpg)
 
 ChannelPipeline是一个双向链表。入站事件会从链表 head 往后传递到最后一个入站的 handler，出站事件会从链表 tail 往前传递到最前一个出站的 handler，两种类型的 handler 互不干扰。
 
@@ -550,7 +546,7 @@ ByteBuf directBuf = Unpooled.directBuffer(16);
 
 第四部分的字节，表示的是该 ByteBuf 最多还能扩容的大小。
 
-![img](F:\github\Study\docs\java基础\image\20181118215630736.png)
+![img](image/20181118215630736.png)
 
 #### ByteBuf 的三个指针
 
@@ -568,7 +564,7 @@ ByteBuf directBuf = Unpooled.directBuffer(16);
 
   capacity（）扩容超过最大限度 maxCapacity 就会报错
 
-![img](F:\github\Study\docs\java基础\image\201811182157068.png)
+![img](image/201811182157068.png)
 
 #### ByteBuf 的引用计数
 
@@ -647,7 +643,7 @@ maxWritableBytes(): 0
 
 ## 工作架构图
 
-![img](F:\github\Study\docs\java基础\image\1500839-55f5b1d5ddc13581.jpg)
+![img](image/1500839-55f5b1d5ddc13581.jpg)
 
 BossGroup NioEventLoop 循环执行的任务包含 3 步：
 

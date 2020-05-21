@@ -10,7 +10,7 @@ rabbitMQ中规中矩，对数据一致性、稳定性、可靠性要求很高的
 
 为什么rabbitMQ高性能的原因：Erlang语言开发，和原生socket一样的低延迟
 
-![img](D:\gitubDATA\Study\docs\中间件\images\mq知识框架.png)
+![img](images/mq知识框架.png)
 
 # 安装
 
@@ -25,7 +25,7 @@ rabbitMQ中规中矩，对数据一致性、稳定性、可靠性要求很高的
 
 # 核心概念
 
-![img](D:\gitubDATA\Study\docs\中间件\images\rabbitMQ_模型.png)
+![img](images/rabbitMQ_模型.png)
 
 - channel
 
@@ -346,7 +346,7 @@ public class Consumer {
 
 ### Spring cloud
 
-![img](D:\gitubDATA\Study\docs\中间件\images\springcloud_stream.png)
+![img](images/springcloud_stream.png)
 
 #### 优势
 
@@ -381,7 +381,7 @@ public class Consumer {
 - 连接双方可以使用不同的users+virtual hosts
 - 连接双方可以使用不同的rabbitMQ版本和erlang版本 
 
-![img](D:\gitubDATA\Study\docs\中间件\images\多活模式.png)
+![img](images/多活模式.png)
 
 
 
@@ -397,7 +397,7 @@ keepAlived
 
 
 
-![img](D:\gitubDATA\Study\docs\中间件\images\rabbitMQ最终版.png)
+![img](images/rabbitMQ最终版.png)
 
 ## 企业解决方案
 
@@ -411,7 +411,7 @@ set即单元化。是为了解决大集群的问题而产生。
 
 核心逻辑集成到一个set中，非核心的放到一个center里面。通过RPC调用。从而实现高内聚低耦合
 
-![img](D:\gitubDATA\Study\docs\中间件\images\set架构.png)
+![img](images/set架构.png)
 
 #### 重要原则
 

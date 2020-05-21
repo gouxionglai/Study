@@ -310,7 +310,7 @@ Exchange有4种类型：direct(默认) , fanout, topic, headers
 
 ### 图解
 
-![img](D:\gitubDATA\Study\docs\spring全家桶\images\rabbitMQ.png)
+![img](images/rabbitMQ.png)
 
 
 
@@ -393,11 +393,11 @@ public class MyRabbitConfig {
 
 //未自定义序列化方式，默认是jdk的方式
 
-![img](D:\gitubDATA\Study\docs\spring全家桶\images\rabbit_default_seria.png)
+![img](images/rabbit_default_seria.png)
 
 //自定义json序列化方式
 
-![img](D:\gitubDATA\Study\docs\spring全家桶\images\rabbit_json_serial.png)
+![img](images/rabbit_json_serial.png)
 
 
 
@@ -451,7 +451,7 @@ public class MyRabbitConfig {
 - 文档：对应表中的数据，一个文档就是一条数据。
 - 属性：对应表的字段，一个属性就是一个字段。
 
-![img](D:\gitubDATA\Study\docs\spring全家桶\images\es1.png)
+![img](images/es1.png)
 
 ## 与SpringBoot整合
 

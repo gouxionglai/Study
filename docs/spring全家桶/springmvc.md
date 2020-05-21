@@ -19,25 +19,25 @@
 
  **Model1：**在早期 Java Web 的开发中，统一把显示层、控制层、数据层的操作全部交给 JSP 或者 JavaBean 来进行处理，我们称之为
 
-![img](F:\github\Study\docs\spring全家桶\images\MVCmodel1.png)
+![img](images/MVCmodel1.png)
 
 
 
 **Model2：**Servlet + JSP + Java Bean 所替代了，早期的 MVC 模型就像下图这样：
 
-![img](F:\github\Study\docs\spring全家桶\images\MVCmodel2.png)
+![img](images/MVCmodel2.png)
 
 
 
 **MODEL3：**传统的模型层被拆分为了业务层(Service)和数据访问层（DAO,Data Access Object）。 在 Service 下可以通过 Spring 的声明式事务操作数据访问层，而在业务层上还允许我们访问 NoSQL ，这样就能够满足异军突起的 NoSQL 的使用了，它可以大大提高互联网系统的性能。
 
-![img](F:\github\Study\docs\spring全家桶\images\MVCmodel3.png)
+![img](images/MVCmodel3.png)
 
 
 
 ## mvc请求逻辑
 
-![img](F:\github\Study\docs\spring全家桶\images\mvc请求逻辑.png)
+![img](images/mvc请求逻辑.png)
 
 
 
@@ -957,7 +957,7 @@ public class LoginInterceptor implements HandlerInterceptor {
 
 详细版：<https://blog.csdn.net/qq_38410730/article/details/79507465>
 
-![img](F:\github\Study\docs\spring全家桶\images\springmvc执行全流程.png)
+![img](images/springmvc执行全流程.png)
 
 
 

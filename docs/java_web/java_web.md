@@ -108,11 +108,11 @@ request.getSession()执行流程
 2. 没有JSESSIONID：
    1. 新建HttpSession对象，分配唯一对象，放入内存，返回HttpSession对象。
 
-![img](F:\github\Study\docs\java_web\image\session处理逻辑.png)
+![img](image/session处理逻辑.png)
 
 ### HttpSession对象的状态
 
-![img](F:\github\Study\docs\java_web\image\session状态.png)
+![img](image/session状态.png)
 
 ## Servlet
 
@@ -122,7 +122,7 @@ web.xml 的加载顺序是：context- param -> listener -> filter -> servlet
 
 实现关系如下：
 
-![img](F:\github\Study\docs\java_web\image\servlet实现关系.png)
+![img](image/servlet实现关系.png)
 
 ### 生命周期
 

@@ -1,6 +1,6 @@
 # Spring
 
-![img](F:\github\Study\docs\spring全家桶\images\spring_framework.png)
+![img](images/spring_framework.png)
 
 ## spring hello-world
 
