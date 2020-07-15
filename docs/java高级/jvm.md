@@ -6,7 +6,15 @@ java内存模型：**Java Memory Model**
 
 下图是JVM内存结构（hotspot）
 
-64位 = 8个字节。markword里面
+64位 = 8个字节。markword里面。
+
+**synchronized是Java内置的机制，是JVM层面的，而Lock则是接口，是JDK层面的**
+
+由于线程竞争导致synchronized锁的升级：无锁(01)--》偏向锁(01)--》轻量级锁(00)--》重量级锁(10)
+
+锁一旦升级就**不能降级了**。
+
+![img](images/锁升级过程.png)
 
 ![image](images/hotspot.png)
 
@@ -476,6 +484,15 @@ workqueue.take();
 3. 大于等于则加入队列，等待执行。
 4. 队列已满，则创建临时线程后执行
 5. 临时线程也满（超过最大线程数），则根据策略直接拒绝task。
+
+### 线程池容量分配策略
+
+```java
+1.CPU密集型任务应配置尽可能小的线程。Ncpu+1个线程的线程池
+2.IO密集型任务线程并不是一直在执行任务，则应配置尽可能多的线程。2*N cpu
+```
+
+
 
 
 
