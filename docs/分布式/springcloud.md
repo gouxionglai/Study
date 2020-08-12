@@ -424,4 +424,156 @@ followLimit：高并发的时候，控制QPSs不能超过多少，自动排队�
 
 ## gateway
 
-路由转发 + 执行过滤连（一系列的filter）（在请求执行前，执行后都可以做处理）
+<https://www.cnblogs.com/crazymakercircle/p/11704077.html>
+
+路由转发 + 执行过滤连（一系列的filter）（在请求执行前，执行后都可以做处理）.
+
+强大主要体现在三个地方：Filter(过滤器),  Route(路由),  Predicate(断言)
+
+### Filter过滤器
+
+和Zuul的过滤器在概念上类似，可以使用它拦截和修改请求，并且对上游的响应，进行二次处理。过滤器为org.springframework.cloud.gateway.filter.GatewayFilter类的实例。
+
+**阶段：**
+
+- before
+
+- after
+
+**范围：**
+
+- gateway 单一
+- global 全局
+
+```java
+//全局过滤器
+@Configuration
+public class MyLogGatewayFilter implements GlobalFilter, Ordered {
+    Logger logger = LoggerFactory.getLogger(MyLogGatewayFilter.class);
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        logger.info("--------进入global filter....");
+        String name = exchange.getRequest().getQueryParams().getFirst("name");
+        if(name ==null){
+            logger.error("--------error: 非法name为空");
+            //设置状态码
+            exchange.getResponse().setStatusCode(HttpStatus.NOT_ACCEPTABLE);
+            //设置响应完成
+            return exchange.getResponse().setComplete();
+        }
+        return chain.filter(exchange);
+    }
+
+    @Override
+    public int getOrder() {
+        //返回优先级，0最高
+        return 0;
+    }
+}
+```
+
+
+
+### Route路由
+
+网关配置的基本组成模块，和Zuul的路由配置模块类似。一个**Route模块**由一个 ID，一个目标 URI，一组断言和一组过滤器定义。如果断言为真，则路由匹配，目标URI会被访问。
+
+```yaml
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true     #开启从注册中心动态创建路由的功能，利用微服务名称进行路由
+      routes:   #数组
+        - id: payment_routh   #路由id, 命名唯一
+#          uri: http://localhost:8001/api/payment/get/4   #路由：匹配后提供服务的路由地址
+          uri: lb://CLOUD-PAYMENT-SERVICE  #好处：可以负载均衡，不指定具体的服务器  注意前面有一个lb://
+          predicates:   #断言 匹配路径 可以是一组规则
+            - Path=/*/payment/get/**    #需要匹配路径
+        - id: payment_routh2   #路由id, 命名唯一
+          #网页访问路径为localhost:9527/api/payment/get/4 -->跳转到localhost:8001/api/payment/get/4
+          uri: lb://CLOUD-PAYMENT-SERVICE
+          predicates:   #断言 匹配路径
+            - Path=/**/payment/lb/**
+```
+
+
+
+### Predicate断言
+
+这是一个 Java 8 的 Predicate，可以使用它来匹配来自 HTTP 请求的任何内容，例如 headers 或参数。**断言的**输入类型是一个 ServerWebExchange。
+
+![image](D:\gitubDATA\Study\docs\分布式\images\predicate.jpg)
+
+
+
+- path：路由路径断言
+- dateTime：常用的时间校验断言，时间在之前/之后/之间才能访问。
+- header：请求头断言
+- Query：请求参数中包含指定参数即可匹配
+
+# 配置中心
+
+注册中心是管理服务注册，对外提供一致的服务而不用管指向具体哪个服务。
+
+配置中心则是管理服务配置，众多微服务的配置，统一完成修改，而不用每一个都改一次。
+
+其实质是：类似svn,git等版本工具，修改一个上传后所有的服务都update配置
+
+
+
+## 配置
+
+maven
+
+```xml
+<!--spring config-->	
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-config-server</artifactId>
+</dependency>
+```
+
+yml
+
+```yaml
+server:
+  port: 3344
+spring:
+  application:
+    name: cloud-config-center
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/gouxionglai/springcloud-config.git
+          search-paths: #搜索目录 //其实就是仓库名字   为了定位到具体的代码分支。
+            - springcloud-config
+      label: master  #读取分支
+```
+
+
+
+Application
+
+```java
+@EnableConfigServer		//重点是这个。 激活配置中心。
+@SpringBootApplication
+public class Config3344Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Config3344Application.class, args);
+    }
+}
+```
+
+
+
+访问地址
+
+```txt
+//需要先修改hosts文件 映射config3344.com地址
+http://config3344.com:3344/master/application-dev.yml
+//就能直接看到application-dev.yml的文件内容。相当于直接在github上访问。
+```
+
