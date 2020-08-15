@@ -523,12 +523,12 @@ spring:
 
 
 
-## 配置
+## 配置服务端
 
 maven
 
 ```xml
-<!--spring config-->	
+<!--spring config server-->	
 <dependency>
     <groupId>org.springframework.cloud</groupId>
     <artifactId>spring-cloud-config-server</artifactId>
@@ -575,5 +575,193 @@ public class Config3344Application {
 //需要先修改hosts文件 映射config3344.com地址
 http://config3344.com:3344/master/application-dev.yml
 //就能直接看到application-dev.yml的文件内容。相当于直接在github上访问。
+```
+
+
+
+## 配置客户端
+
+maven
+
+```xml
+<!--spring config client-->	
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-start-config</artifactId>
+</dependency>
+```
+
+yml  (注意这里必须要是bootstrap.yml  因为bootstrap.yml加载优先级高于application.yml)
+
+```yaml
+server:
+  port: 3355
+spring:
+  application:
+    name: cloud-config-client
+  cloud:
+    config:
+      label: master  #读取分支
+      name: application
+      profile: dev
+      uri: http://localhost:3344
+```
+
+
+
+Application
+
+```java
+@EnableEurekaClient  //注册服务
+@SpringBootApplication
+public class Config3355Application {
+    public static void main(String[] args) {
+        SpringApplication.run(Config3355Application.class, args);
+    }
+}
+```
+
+
+
+```java
+package com.gxl.study.springcloud.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * @author gouxi
+ * @description
+ * @since 2020/8/14
+ */
+//@RefreshScope   //配置刷新功能
+@RestController
+public class ConfigController {
+
+    // 因为config仓库以rest形式暴露，所以所有客户端都可以通过config服务端访问到github上对应的文件信息：根据uri+name+profile+label 获取文件
+    //所以这里已经是拿到了一个配置文件，比如application-dev.yml。  然后取里面的config.info的配置
+    @Value("${config.info}")
+    private String configInfo;
+
+    @Value("${server.port}")
+    private String serverPort;
+
+    @GetMapping("/get")
+    public String get() {
+        return "serverPort: " + serverPort + ", \t\n\n configInfo: " + configInfo;
+    }
+}
+
+```
+
+
+
+访问地址
+
+```txt
+//需要先修改hosts文件 映射config3344.com地址
+http://localhost:3355/get
+//就能直接看到application-dev.yml的${config.info}配置对应的value。
+```
+
+
+
+但是当配置中心修改之后，我们正常是希望其集群中的配置都跟着修改。但是并没有生效。除非重启3355微服务。但是正常都不允许重启。所以需要开启动态刷新功能。
+
+```txt
+1.controller上，增加注解:@RefreshScope   //其实我是觉得在使用${config.info}之类的调用配置中心信息的地方，都应该加上。
+2.配置文件暴露监听端点bootstrap.yml
+	management:
+  	  endpoints:
+        web:
+          exposure:
+            include: "*"
+```
+
+但是都还不能刷新，必须主动访问一个链接去触发刷新。即acutua
+
+```url
+curl -X POST "http://localhost:3355/actuator/refresh"   //注意 -X POST 必须大写
+```
+
+重新访问地址http://localhost:3355/get  即可看到最新的配置
+
+但是问题又来了，每台服务器都需要去触发一次。
+
+## 配置通知总线
+
+如果能有一个通知机制，修改了配置，直接由配置中心，通知其下的所有配置。那不是爽歪歪？rabbitMQ/KAFKA 就可以实现。
+
+### 原理
+
+ConfigClient实例都监听MQ中的同一个topic（默认是springCloudBus，所以配置刷新点为bus-refresh）。
+
+当一个服务刷新数据的时候，它会把这个信息放入到topic中，这样其他监听同一个topic的服务j就能得到通知，相当于主动去curl -x POST xx  ,就会更新配置。
+
+server + client maven配置
+
+```xml
+ <!--spring rabbitMQ -->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-bus-amqp</artifactId>
+</dependency>
+```
+
+
+
+server yaml配置
+
+```yaml
+spring:  
+  rabbitmq:
+    host: hostxxxxxx
+    port: 5672
+    username: userxx
+    password: passxxx
+
+#rabbitmq相关设置 ，暴露 bus刷新配置的端点
+management:
+  endpoints:
+    web:
+      exposure:
+        #固定的名称：bus-refresh
+        include: 'bus-refresh'
+```
+
+client yaml配置
+
+```yaml
+spring:  
+  rabbitmq:
+    host: hostxxxxxx
+    port: 5672
+    username: userxx
+    password: passxxx
+
+#rabbitmq相关设置 ，暴露刷新配置的端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+```
+
+手动通知
+
+```shell
+curl -X POST "http://localhost:3355/actuator/bus-refresh"   //通知的是配置中心。而不是具体的某一个服务器。因为配置了rabbitMQ，所以可以传播给所有订阅的服务器。
+```
+
+
+
+### 差异化处理
+
+假设不想全部通知，而是定向通知。则将curl修改为
+
+```shell
+curl -X POST "http://localhost:3355/actuator/bus-refresh/config-client:3355" 
 ```
 

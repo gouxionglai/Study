@@ -23,6 +23,18 @@ rabbitMQ中规中矩，对数据一致性、稳定性、可靠性要求很高的
 
 
 
+```shell
+新建用户：rabbitmqctl add_user username passwd
+删除用户：rabbitmqctl delete_user username
+改密码: rabbimqctl change_password {username} {newpassword}
+设置用户角色：rabbitmqctl set_user_tags {username} {tag ...}
+
+rabbitmqctl set_permissions -p / username ".*" ".*" ".*"  //添加权限
+
+```
+
+
+
 # 核心概念
 
 ![img](images/rabbitMQ_模型.png)
