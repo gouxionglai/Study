@@ -523,7 +523,9 @@ spring:
 
 
 
-## 配置服务端
+## spring-cloud-config
+
+### 配置服务端
 
 maven
 
@@ -579,7 +581,7 @@ http://config3344.com:3344/master/application-dev.yml
 
 
 
-## 配置客户端
+### 配置客户端
 
 maven
 
@@ -690,7 +692,9 @@ curl -X POST "http://localhost:3355/actuator/refresh"   //注意 -X POST 必须�
 
 但是问题又来了，每台服务器都需要去触发一次。
 
-## 配置通知总线
+# 消息总线
+
+## spring-cloud-bus
 
 如果能有一个通知机制，修改了配置，直接由配置中心，通知其下的所有配置。那不是爽歪歪？rabbitMQ/KAFKA 就可以实现。
 
@@ -703,7 +707,7 @@ ConfigClient实例都监听MQ中的同一个topic（默认是springCloudBus，�
 server + client maven配置
 
 ```xml
- <!--spring rabbitMQ -->
+ <!--spring cloud bus -->
 <dependency>
     <groupId>org.springframework.cloud</groupId>
     <artifactId>spring-cloud-starter-bus-amqp</artifactId>
@@ -764,4 +768,167 @@ curl -X POST "http://localhost:3355/actuator/bus-refresh"   //通知的是配置
 ```shell
 curl -X POST "http://localhost:3355/actuator/bus-refresh/config-client:3355" 
 ```
+
+
+
+# 消息驱动
+
+## 目的
+
+解决不同消息中间件的差异化配置，对外提供统一的接口。让使用者忽略中间件的差异，不管怎么换中间件，都用一个stream+ 对应中间件就ok了。（思想很像spring mvc的dispatcher中的XXadapter）
+
+## spring-cloud-stream
+
+### 消息生产
+
+### 消息消费
+
+### 重复消费
+
+现象：
+
+​	多个相同的微服务作为消费者，同时收到了一样的消息。
+
+原理：
+
+​	微服务应用应该置于同一个group中，就能保证消息只会被其中一个应用消费一次。
+
+​	不同的组是可以重复消费的 ，同一个组内是竞争关系，只有一个可以消费。
+
+解决：
+
+​	8802，8803设置成一个自定义组。
+
+设置分组：
+
+​	在spring.cloud.stream.bindings.input下增加group属性。值自定义。
+
+​	这个时候消费是有负载均衡策略在里面的，默认是轮询。
+
+```yaml
+spring:
+  cloud:
+    stream:
+      bindings:
+        input:
+          destination: studyExchange
+          content-type: application/json  #消息类型，还可以是text/plain等
+          binder: defaultRabbit #即上面binders乱里面定义的defaultRabbit
+          group: groupAAA
+```
+
+### 持久化
+
+如果消费者宕机了，消息并不会丢失，而是再发现启动之后继续推送。
+
+# 请求链路追踪
+
+在微服务情况下，一个请求会经历N多个服务，就需要知道经历了哪些服务，耗时，异常之类的问题。
+
+## Sleuth(整合了zipkin)
+
+### Zipkin 
+
+trace: 类似于树结构的span结合，表示一条链路调用，存在唯一标识。
+
+span: 标识调用链路来源。一次请求就是一个span.
+
+
+
+# SpringCloud ALIBABA
+
+## nacos
+
+服务注册naming + 服务配置configuration + 消息总线service
+
+nacos = Eureka +  Config + Bus
+
+## 安装运行
+
+作为server
+
+### 单机版
+
+### 集群版
+
+
+
+## 服务注册
+
+服务提供方
+
+```yml
+server:
+  port: 9001
+spring:
+  application:
+    name: cloud-nacos-payment-provider
+  cloud:
+    nacos:
+      discovery:
+      #往nacos注册
+        server-addr: localhost:8848 #nacos地址
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*' #暴露地址
+```
+
+服务调用方
+
+```yml
+server:
+  port: 83
+spring:
+  application:
+    name: cloud-nacos-consumer-order
+  cloud:
+    nacos:
+      discovery:
+      #往nacos注册
+        server-addr: localhost:8848
+
+
+#自定义标签：   payment支付提供者的service name
+service-url:
+  nacos-use-service: http://cloud-nacos-payment-provider 
+```
+
+使用
+
+```java
+//==========配置
+@Configuration
+public class ApplicationContextConfig {
+
+    //注入restTemplate
+    @Bean
+    @LoadBalanced   //负载均衡
+    public RestTemplate getRestTemplate(){
+        return new RestTemplate();
+    }
+}
+
+//==========controller
+@RestController
+public class OrderController {
+    @Resource
+    private RestTemplate restTemplate;
+
+    //这个value就是自定义标签的值
+    @Value("${service-url.nacos-use-service}")
+    private String serverURL= "";
+
+    @GetMapping("/consumer/payment/{id}")
+    public String getPayment(@PathVariable Integer id){
+        //使用rpc调用
+        return restTemplate.getForObject(serverURL+"/payment/"+id, String.class);
+    }
+}
+```
+
+
+
+
 
