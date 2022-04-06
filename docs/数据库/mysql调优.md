@@ -68,7 +68,7 @@ update语句执行逻辑如下：
 
 1、同名字含义，回滚用。记录了事务id(即tx_id)、更新后的数据、以及指针.(即roll_pointer，指向上一个事务。)
 
-![](/image/cd24adc78dc1f6d0a2481f349b29390e.png)
+![](image/cd24adc78dc1f6d0a2481f349b29390e.png)
 
 ### bin log
 
@@ -107,7 +107,7 @@ server-id=1
 
 
 
-![](/image/show_bin_log.PNG)
+![](image/show_bin_log.PNG)
 
 ### 慢日志查询
 
