@@ -847,13 +847,36 @@ nacos = Eureka +  Config + Bus
 
 作为server
 
-### 单机版
+### 单机版	
 
 ### 集群版
 
+1Nginx + 3Nacos + 1Mysql
+
+### 切换数据库
+
+默认数据库是内嵌的apache.derby，如果想要集群，则nacos就不能再使用自身内嵌的数据库，而是所有nacos都使用同一份外置的数据库mysql.
+
+迁移方式：  ([具体参考官网说明](https://nacos.io/zh-cn/docs/deployment.html))
+
+1.  修改配置文件：application.properties
+
+   ```properties
+   spring.datasource.platform=mysql
+   
+   db.num=1
+   db.url.0=jdbc:mysql://11.162.196.16:3306/nacos_devtest?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true
+   db.user=nacos_devtest
+   db.password=youdontknow
+   ```
+
+   
+
+2.  在mysql数据库执行脚本nacos-mysql.sql
 
 
-## 服务注册
+
+## 服务注册discovery
 
 服务提供方
 
@@ -930,5 +953,14 @@ public class OrderController {
 
 
 
+## 服务配置config
+
+AP  可选择 高可用
+
+CP  默认 高一致性
 
 
+
+namespace + group + Data ID
+
+命名空间， 分组， 编号
