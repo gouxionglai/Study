@@ -66,13 +66,13 @@ update语句执行逻辑如下：
 
 ### undo log
 
-1、同名字含义，回滚用。记录了事务id(即tx_id)、更新后的数据、以及指针.(即roll_pointer，指向上一个事务。)
+1、同名字含义，回滚用 (所以肯定支持事务，即mysql独有)。记录了事务id(即tx_id)、更新后的数据、以及指针.(即roll_pointer，指向上一个事务。)
 
 ![](image/cd24adc78dc1f6d0a2481f349b29390e.png)
 
 ### bin log
 
-1、server层
+1、server层 (mysql都会有，不管是innoDB，还是MyISAM)
 
 2、记录形式分为3种：statement 格式的话是记sql语句， row格式会记录行的内容，记两条，更新前和更新后都有。 
 
