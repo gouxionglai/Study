@@ -120,6 +120,20 @@ SHOW VARIABLES LIKE 'slow_query_log';
 
 
 
+### 举例
+
+追问1
+
+追问2
+
+追问3
+
+追问 4：如果这样的话，为什么还要两阶段提交呢？干脆先 redo log 写完，再写 binlog。崩溃恢复的时候，必须得两个日志都完整才可以。是不是一样的逻辑？
+
+
+
+
+
 ### 总结
 
 1. redo log 是 InnoDB 引擎特有的；binlog 是 MySQL 的 Server 层实现的，所有引擎都可以使用。
